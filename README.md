@@ -17,19 +17,31 @@ Generate beautiful API documentation websites for Fortran projects. FORMAL bridg
 
 ## Installation
 
-### From source (recommended for now)
+### From PyPI (recommended)
+
+```bash
+pipx install formal-ford2vitepress
+```
+
+Or with pip:
+
+```bash
+pip install formal-ford2vitepress
+```
+
+### From source
 
 ```bash
 git clone https://github.com/szaghi/formal.git
-cd formal
-pip install -e .
+cd formal-ford2vitepress
+pipx install -e .
 ```
 
 ### Requirements
 
 - Python >= 3.9
 - [FORD](https://github.com/Fortran-FOSS-Programmers/ford) >= 7.0 (installed automatically as dependency)
-- [Node.js](https://nodejs.org/) >= 18 (for VitePress)
+- [Node.js](https://nodejs.org/) >= 18 (for VitePress, needed at docs build time only)
 
 ## Quick start
 

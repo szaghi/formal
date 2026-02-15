@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "formal"
+name = "formal-ford2vitepress"
 version = "0.1.0"
 description = "FORMAL: Fortran FORD VitePress Markdown Documentation HTML generator"
 readme = "README.md"
