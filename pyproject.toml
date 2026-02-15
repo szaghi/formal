@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "formal"
+version = "0.1.0"
+description = "FORMAL: Fortran FORD VitePress Markdown Documentation HTML generator"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "Stefano Zaghi", email = "stefano.zaghi@gmail.com" },
+]
+keywords = ["fortran", "documentation", "ford", "vitepress", "api-docs"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Fortran",
+    "Topic :: Documentation",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Documentation",
+]
+dependencies = [
+    "ford>=7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[project.urls]
+Homepage = "https://github.com/szaghi/formal"
+Repository = "https://github.com/szaghi/formal"
+Issues = "https://github.com/szaghi/formal/issues"
+
+[project.scripts]
+formal = "formal.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 120
