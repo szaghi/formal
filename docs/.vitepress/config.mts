@@ -6,7 +6,7 @@ export default defineConfig({
   description: 'Fortran API documentation with FORD + VitePress',
 
   // Set base path for GitHub Pages (repo name)
-  // base: '/formal/',
+  base: '/formal/',
 
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
