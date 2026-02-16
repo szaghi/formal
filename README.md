@@ -4,6 +4,13 @@
 
 Generate beautiful API documentation websites for Fortran projects. FORMAL bridges [FORD](https://github.com/Fortran-FOSS-Programmers/ford) (Fortran Documenter) and [VitePress](https://vitepress.dev) (Vue-powered static site generator) -- it parses your Fortran `!<` doc comments and produces a complete, searchable, themed documentation site.
 
+## Showcases
+
+Projects using FORMAL for their API documentation:
+
+- **[PENF](https://szaghi.github.io/PENF/)** — Portability Environment for Fortran poor people &nbsp;|&nbsp; [GitHub](https://github.com/szaghi/PENF)
+- **[FACE](https://szaghi.github.io/FACE/)** — Fortran ANSI Colors and Escape sequences &nbsp;|&nbsp; [GitHub](https://github.com/szaghi/FACE)
+
 ## Features
 
 - Parses Fortran sources using FORD's battle-tested parser

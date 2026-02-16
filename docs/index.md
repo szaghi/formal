@@ -7,7 +7,7 @@ hero:
   tagline: Generate beautiful documentation websites for Fortran projects using FORD + VitePress.
   actions:
     - theme: brand
-      text: Get Started
+      text: Guide
       link: /guide/
     - theme: alt
       text: View on GitHub
@@ -27,6 +27,13 @@ features:
   - title: Scaffold in Seconds
     details: "Run `formal init` to scaffold a ready-to-use VitePress site with FORD project file."
 ---
+
+## Showcases
+
+Projects using FORMAL for their API documentation:
+
+- **[PENF](https://szaghi.github.io/PENF/)** — Portability Environment for Fortran poor people &nbsp;|&nbsp; [GitHub](https://github.com/szaghi/PENF)
+- **[FACE](https://szaghi.github.io/FACE/)** — Fortran ANSI Colors and Escape sequences &nbsp;|&nbsp; [GitHub](https://github.com/szaghi/FACE)
 
 ## Installation
 

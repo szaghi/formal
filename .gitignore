@@ -13,3 +13,6 @@ venv/
 *.swo
 *~
 .DS_Store
+# VitePress
+docs/.vitepress/dist/
+docs/.vitepress/cache/
