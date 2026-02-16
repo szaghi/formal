@@ -44,5 +44,11 @@ formal = "formal.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: tests requiring FORD installed (may be slow)",
+]
+
 [tool.ruff]
 line-length = 120

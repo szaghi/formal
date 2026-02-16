@@ -274,6 +274,59 @@ Static HTML documentation site
 
 Key insight: FORD's pipeline goes `parse → correlate → markdown → HTML`. FORMAL hooks in after `correlate()` and reads the raw `doc_list` (Markdown strings) from every entity, skipping FORD's own HTML generation entirely. VitePress handles the Markdown-to-HTML conversion with its own theme.
 
+## Development
+
+### Setup
+
+```bash
+git clone https://github.com/szaghi/formal.git
+cd formal
+pip install -e ".[dev]"
+```
+
+This installs FORMAL in editable mode along with `pytest` and `ruff`.
+
+### Running tests
+
+```bash
+# Run all tests (unit + integration)
+pytest -v
+
+# Run unit tests only (no FORD dependency needed)
+pytest -v -m "not integration"
+
+# Run integration tests only (requires FORD)
+pytest -v -m "integration"
+
+# Quick summary
+pytest --tb=short
+```
+
+### Test structure
+
+```
+tests/
+├── mocks.py                     # Lightweight mock FORD objects for unit tests
+├── conftest.py                  # Shared fixtures
+├── fixtures/
+│   └── sample_module.F90        # Fortran fixture for integration tests
+├── test_formatting.py           # strip_html, escape_pipe, format_doc, inline_doc, ...
+├── test_classify.py             # _classify_module sidebar grouping
+├── test_entity_formatters.py    # format_variable_table, format_procedure, format_type, ...
+├── test_scaffold.py             # create_ford_project_file, init_vitepress_site, ...
+├── test_cli.py                  # CLI argument parsing and command dispatch
+└── test_integration.py          # Full pipeline: Fortran fixture -> FORD parse -> Markdown
+```
+
+**Unit tests** use mock objects that mimic FORD entities by duck-typing, so they run without FORD parsing overhead. **Integration tests** exercise the full pipeline (FORD parse + Markdown generation) and are marked with `@pytest.mark.integration`.
+
+### Linting
+
+```bash
+ruff check src/ tests/
+ruff format --check src/ tests/
+```
+
 ## Releasing a new version
 
 A release script at `scripts/build_publish.sh` automates the full release pipeline.
