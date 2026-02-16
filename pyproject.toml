@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "formal-ford2vitepress"
-version = "0.2.0"
+version = "0.2.1"
 description = "FORMAL: Fortran FORD VitePress Markdown Documentation HTML generator"
 readme = "README.md"
 license = "MIT"
