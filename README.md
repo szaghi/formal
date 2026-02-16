@@ -243,7 +243,7 @@ cd docs && npm run docs:build
 
 ## Customization
 
-See the [Documentation Guide](docs/GUIDE.md) for:
+See the [Documentation Guide](docs/guide/) for:
 
 - Adding hand-written pages alongside API docs
 - Customizing sidebar structure and grouping
