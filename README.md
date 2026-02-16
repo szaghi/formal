@@ -15,6 +15,8 @@ Generate beautiful API documentation websites for Fortran projects. FORMAL bridg
 - Scaffolds a ready-to-use VitePress site in seconds
 - Works with any FORD-compatible Fortran project
 
+See the [Documentation Guide](https://szaghi.github.io/formal/).
+
 ## Installation
 
 ### From PyPI (recommended)
@@ -243,7 +245,7 @@ cd docs && npm run docs:build
 
 ## Customization
 
-See the [Documentation Guide](docs/guide/) for:
+See the [Documentation Guide](https://szaghi.github.io/formal/) for:
 
 - Adding hand-written pages alongside API docs
 - Customizing sidebar structure and grouping
