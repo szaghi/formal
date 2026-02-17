@@ -86,6 +86,21 @@ class TestFormatProcedure:
         assert "result(res)" in result
         assert "**Returns**: `real(rp)`" in result
 
+    def test_function_retvar_linked_drops_backticks(self):
+        retvar = MockVariable(name="res", full_type="type(MyType)")
+        proc = MockProcedure(name="make_type", proctype="function", args=[], retvar=retvar)
+        index = {"mytype": "/api/my_module#mytype"}
+        result = format_procedure(proc, link_index=index)
+        assert "**Returns**: type([MyType](/api/my_module#mytype))" in result
+        # backtick wrapping removed when links are present
+        assert "**Returns**: `" not in result
+
+    def test_function_retvar_no_link_index_uses_backticks(self):
+        retvar = MockVariable(name="res", full_type="type(MyType)")
+        proc = MockProcedure(name="make_type", proctype="function", args=[], retvar=retvar)
+        result = format_procedure(proc)
+        assert "**Returns**: `type(MyType)`" in result
+
     def test_function_retvar_same_name(self):
         retvar = MockVariable(name="myfunc", full_type="integer")
         proc = MockProcedure(name="myfunc", proctype="function", args=[], retvar=retvar)
@@ -155,6 +170,20 @@ class TestFormatType:
         result = format_type(dtype)
         assert "**Extends**: `base_type`" in result
 
+    def test_type_extends_linked(self):
+        parent = MockType(name="base_type")
+        dtype = MockType(name="child_type", extends=parent, variables=[])
+        index = {"base_type": "/api/my_module#base_type"}
+        result = format_type(dtype, link_index=index)
+        assert "**Extends**: [`base_type`](/api/my_module#base_type)" in result
+
+    def test_type_extends_not_in_index(self):
+        parent = MockType(name="external_base")
+        dtype = MockType(name="child_type", extends=parent, variables=[])
+        index = {}
+        result = format_type(dtype, link_index=index)
+        assert "**Extends**: `external_base`" in result
+
     def test_type_with_bound_procs(self):
         bp = MockBoundProc(name="init", doc_list=["Set up."])
         dtype = MockType(name="obj", boundprocs=[bp])
@@ -195,6 +224,28 @@ class TestFormatInterface:
         assert "**Module procedures**" in result
         assert "`impl_a`" in result
         assert "`impl_b`" in result
+
+    def test_interface_modprocs_linked(self):
+        mp1 = MockModProc(name="digit_I8")
+        mp2 = MockModProc(name="digit_I4")
+        iface = MockInterface(name="digit", modprocs=[mp1, mp2])
+        index = {
+            "digit_i8": "/api/penf_stringify#digit_i8",
+            "digit_i4": "/api/penf_stringify#digit_i4",
+        }
+        result = format_interface(iface, link_index=index)
+        assert "[`digit_I8`](/api/penf_stringify#digit_i8)" in result
+        assert "[`digit_I4`](/api/penf_stringify#digit_i4)" in result
+
+    def test_interface_modprocs_partial_link(self):
+        mp1 = MockModProc(name="known_proc")
+        mp2 = MockModProc(name="unknown_proc")
+        iface = MockInterface(name="generic", modprocs=[mp1, mp2])
+        index = {"known_proc": "/api/mod#known_proc"}
+        result = format_interface(iface, link_index=index)
+        assert "[`known_proc`](/api/mod#known_proc)" in result
+        assert "`unknown_proc`" in result
+        assert "[`unknown_proc`]" not in result
 
     def test_interface_with_doc(self):
         iface = MockInterface(name="iface", doc_list=["Generic interface."])
@@ -259,3 +310,53 @@ class TestFormatModule:
         result = format_module(module)
         assert "## Interfaces" in result
         assert "### generic_op" in result
+
+
+# ---------------------------------------------------------------------------
+# format_module TOC
+# ---------------------------------------------------------------------------
+
+class TestFormatModuleTOC:
+    def test_toc_present_when_entities_exist(self):
+        dtype = MockType(name="MyType")
+        module = MockModule(name="my_mod", types=[dtype])
+        result = format_module(module)
+        assert "## Contents" in result
+        assert "- [MyType](#mytype)" in result
+
+    def test_toc_absent_for_empty_module(self):
+        module = MockModule(name="empty_mod")
+        result = format_module(module)
+        assert "## Contents" not in result
+
+    def test_toc_includes_all_entity_kinds(self):
+        dtype = MockType(name="config_t")
+        iface = MockInterface(name="generic_op")
+        sub = MockProcedure(name="my_sub", proctype="subroutine", args=[])
+        func = MockProcedure(name="my_func", proctype="function", args=[])
+        module = MockModule(
+            name="full_mod",
+            types=[dtype],
+            interfaces=[iface],
+            subroutines=[sub],
+            functions=[func],
+        )
+        result = format_module(module)
+        assert "- [config_t](#config_t)" in result
+        assert "- [generic_op](#generic_op)" in result
+        assert "- [my_sub](#my_sub)" in result
+        assert "- [my_func](#my_func)" in result
+
+    def test_toc_anchor_is_lowercase(self):
+        dtype = MockType(name="MyUpperType")
+        module = MockModule(name="mod", types=[dtype])
+        result = format_module(module)
+        assert "- [MyUpperType](#myuppertype)" in result
+
+    def test_toc_appears_before_entity_sections(self):
+        dtype = MockType(name="config_t")
+        module = MockModule(name="mod", types=[dtype])
+        result = format_module(module)
+        toc_pos = result.index("## Contents")
+        types_pos = result.index("## Derived Types")
+        assert toc_pos < types_pos

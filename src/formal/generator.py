@@ -39,6 +39,8 @@ def load_project(project_file: Path):
 _LINK_RE = re.compile(
     r"\[\[(\w+(?:\.\w+)?)(?:\((\w+)\))?(?::(\w+)(?:\((\w+)\))?)?\]\]"
 )
+_TYPE_PAREN_RE = re.compile(r"\b(type|class)\((\w+)\)", re.IGNORECASE)
+_KIND_EQ_RE = re.compile(r"\bkind=(\w+)", re.IGNORECASE)
 
 
 def build_entity_index(project, api_prefix: str = "/api/") -> dict[str, str]:
@@ -78,6 +80,9 @@ def build_entity_index(project, api_prefix: str = "/api/") -> dict[str, str]:
             url = f"{prefix}/{module.name}#{anchor}"
             index[iface.name.lower()] = url
             index[f"{mod_key}:{iface.name.lower()}"] = url
+
+        for var in module.variables:
+            index[var.name.lower()] = f"{prefix}/{module.name}"
 
     return index
 
@@ -119,6 +124,40 @@ def resolve_links(text: str, index: dict[str, str]) -> str:
     return _LINK_RE.sub(_replace, text)
 
 
+def linkify_type_str(text: str, index: dict[str, str]) -> str:
+    """Insert Markdown links into a plain Fortran type string.
+
+    Recognises ``type(name)`` / ``class(name)`` and ``kind=name`` patterns.
+    If the name is present in *index* the name is replaced with a Markdown
+    link; otherwise the text is left unchanged.
+
+    Args:
+        text: A plain (HTML-stripped) Fortran type string.
+        index: Name→URL mapping built by :func:`build_entity_index`.
+
+    Returns:
+        The type string with known names turned into Markdown links.
+    """
+    def _replace_type(m: re.Match) -> str:
+        keyword = m.group(1)
+        name = m.group(2)
+        url = index.get(name.lower())
+        if url:
+            return f"{keyword}([{name}]({url}))"
+        return m.group(0)
+
+    def _replace_kind(m: re.Match) -> str:
+        name = m.group(1)
+        url = index.get(name.lower())
+        if url:
+            return f"kind=[{name}]({url})"
+        return m.group(0)
+
+    text = _TYPE_PAREN_RE.sub(_replace_type, text)
+    text = _KIND_EQ_RE.sub(_replace_kind, text)
+    return text
+
+
 def strip_html(text: str) -> str:
     """Strip HTML tags from text (FORD adds <a href=...> links after correlate)."""
     return re.sub(r"<[^>]+>", "", text)
@@ -152,18 +191,24 @@ def inline_doc(doc_list: list, link_index: Optional[dict] = None) -> str:
     return ""
 
 
-def format_type_str(var) -> str:
+def format_type_str(var, link_index: Optional[dict] = None) -> str:
     """Get a display string for a variable's Fortran type."""
     try:
         ft = var.full_type
         if ft:
-            return escape_pipe(strip_html(str(ft)))
+            s = strip_html(str(ft))
+            if link_index:
+                s = linkify_type_str(s, link_index)
+            return escape_pipe(s)
     except Exception:
         pass
     s = str(var.vartype) if var.vartype else ""
     if hasattr(var, "kind") and var.kind:
         s += f"({var.kind})"
-    return escape_pipe(strip_html(s))
+    s = strip_html(s)
+    if link_index:
+        s = linkify_type_str(s, link_index)
+    return escape_pipe(s)
 
 
 def format_attribs(var) -> str:
@@ -233,7 +278,7 @@ def format_variable_table(
 
     for var in variables:
         name = f"`{var.name}`" if hasattr(var, "name") else str(var)
-        vtype = format_type_str(var)
+        vtype = format_type_str(var, link_index)
         attribs = format_attribs(var)
         doc = inline_doc(var.doc_list, link_index) if hasattr(var, "doc_list") else ""
 
@@ -273,10 +318,13 @@ def format_procedure(proc, link_index: Optional[dict] = None) -> str:
 
     if hasattr(proc, "retvar") and proc.retvar:
         retvar = proc.retvar
-        ret_type = format_type_str(retvar)
+        ret_type = format_type_str(retvar, link_index)
         if retvar.name != proc.name:
             sig += f" result({retvar.name})"
-        lines.append(f"**Returns**: `{ret_type}`\n")
+        if link_index and "[" in ret_type:
+            lines.append(f"**Returns**: {ret_type}\n")
+        else:
+            lines.append(f"**Returns**: `{ret_type}`\n")
 
     lines.append(f"```fortran\n{sig}\n```\n")
 
@@ -321,7 +369,14 @@ def format_type(dtype, link_index: Optional[dict] = None) -> str:
 
     if dtype.extends:
         extends_name = dtype.extends.name if hasattr(dtype.extends, "name") else str(dtype.extends)
-        lines.append(f"**Extends**: `{extends_name}`\n")
+        if link_index:
+            url = link_index.get(extends_name.lower())
+            if url:
+                lines.append(f"**Extends**: [`{extends_name}`]({url})\n")
+            else:
+                lines.append(f"**Extends**: `{extends_name}`\n")
+        else:
+            lines.append(f"**Extends**: `{extends_name}`\n")
 
     if hasattr(dtype, "attribs") and dtype.attribs:
         lines.append(f"**Attributes**: {', '.join(str(a) for a in dtype.attribs)}\n")
@@ -360,7 +415,17 @@ def format_interface(iface, link_index: Optional[dict] = None) -> str:
             lines.append(format_procedure(proc, link_index))
     elif hasattr(iface, "modprocs") and iface.modprocs:
         names = [str(mp.name) if hasattr(mp, "name") else str(mp) for mp in iface.modprocs]
-        lines.append(f"**Module procedures**: {', '.join(f'`{n}`' for n in names)}\n")
+        if link_index:
+            linked = []
+            for n in names:
+                url = link_index.get(n.lower())
+                if url:
+                    linked.append(f"[`{n}`]({url})")
+                else:
+                    linked.append(f"`{n}`")
+            lines.append(f"**Module procedures**: {', '.join(linked)}\n")
+        else:
+            lines.append(f"**Module procedures**: {', '.join(f'`{n}`' for n in names)}\n")
 
     return "\n".join(lines)
 
@@ -397,6 +462,20 @@ def format_module(
     src_path = get_source_path(module, src_root)
     if src_path:
         lines.append(f"**Source**: `{src_path}`\n")
+
+    toc_items = []
+    for dtype in module.types:
+        toc_items.append(f"- [{dtype.name}](#{dtype.name.lower()})")
+    for iface in module.interfaces:
+        toc_items.append(f"- [{iface.name}](#{iface.name.lower()})")
+    for sub in (module.subroutines or []):
+        toc_items.append(f"- [{sub.name}](#{sub.name.lower()})")
+    for func in (module.functions or []):
+        toc_items.append(f"- [{func.name}](#{func.name.lower()})")
+    if toc_items:
+        lines.append("## Contents\n")
+        lines.extend(toc_items)
+        lines.append("")
 
     if module.variables:
         lines.append("## Variables\n")
