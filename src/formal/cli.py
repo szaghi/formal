@@ -60,7 +60,7 @@ def main(argv=None):
     init_parser.add_argument(
         "--ford-file",
         default=None,
-        help="Path for FORD project file (default: doc/formal.md)",
+        help="Path for FORD project file (default: docs/formal.md)",
     )
     init_parser.add_argument(
         "--docmark",
@@ -98,7 +98,7 @@ def main(argv=None):
     gen_parser.add_argument(
         "--project",
         default=None,
-        help="FORD project file (default: auto-detect doc/formal.md or doc/vitepress.md)",
+        help="FORD project file (default: auto-detect)",
     )
     gen_parser.add_argument(
         "--output",
@@ -220,7 +220,8 @@ def cmd_generate(args) -> int:
         project_file = Path(args.project).resolve()
     else:
         # Auto-detect
-        for candidate in ["doc/formal.md", "doc/vitepress.md", "doc/main_page.md"]:
+        for candidate in ["doc/ford.md", "doc/main_page.md", "doc/formal.md", "doc/vitepress.md",
+                          "docs/ford.md", "docs/main_page.md", "docs/formal.md", "docs/vitepress.md"]:
             p = Path(candidate)
             if p.exists():
                 project_file = p.resolve()
