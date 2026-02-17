@@ -684,7 +684,7 @@ def format_call_diagram(proc, called_by_index: dict) -> str:
         lines.append(f"  {_mid(caller)} --> {_mid(proc.name)}")
     for called in sorted(calls, key=lambda c: c.name):
         lines.append(f"  {_mid(proc.name)} --> {_mid(called.name)}")
-    lines.append(f"  style {proc.name} fill:#dde,stroke:#99b,stroke-width:2px")
+    lines.append(f"  style {proc.name} fill:#3e63dd,stroke:#99b,stroke-width:2px")
     lines.append("```")
     return "\n".join(lines)
 
