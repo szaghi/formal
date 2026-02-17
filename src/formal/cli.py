@@ -181,7 +181,7 @@ def cmd_init(args) -> int:
             print(f"  Auto-detected exclude dirs: {exclude_dirs}")
 
     # Create FORD project file
-    ford_file = Path(args.ford_file) if args.ford_file else project_root / "doc" / "formal.md"
+    ford_file = Path(args.ford_file) if args.ford_file else project_root / "docs" / "formal.md"
     print(f"\nCreating FORD project file: {ford_file}")
     create_ford_project_file(
         output_path=ford_file,
