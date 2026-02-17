@@ -78,3 +78,34 @@ sidebar: {
 ```
 
 When you re-run `formal generate`, the sidebar updates automatically with any new or removed modules. No manual editing of `config.mts` needed.
+
+## Mirroring Source Directory Structure
+
+By default, modules are grouped by a human-readable classification (e.g. `Library / penf`, `Applications / SOLVER`). Passing `--mirror-sources` switches to real source directory paths as group names:
+
+```bash
+formal generate --mirror-sources
+```
+
+The sidebar groups then reflect the actual layout of the source tree:
+
+```json
+[
+  {
+    "text": "src/lib",
+    "collapsed": true,
+    "items": [
+      { "text": "my_module", "link": "/api/src/lib/my_module" }
+    ]
+  },
+  {
+    "text": "src/app",
+    "collapsed": true,
+    "items": [
+      { "text": "main_module", "link": "/api/src/app/main_module" }
+    ]
+  }
+]
+```
+
+This keeps the sidebar consistent with the mirrored file layout produced by `--mirror-sources`.

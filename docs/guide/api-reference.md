@@ -116,6 +116,90 @@ exclude_dir: ../src/third_party/
              ../src/deprecated/
 ```
 
+## Mirrored Source Layout
+
+By default all generated pages land flat inside `docs/api/`. Passing `--mirror-sources` reproduces the Fortran source directory tree inside the output directory:
+
+```bash
+formal generate --mirror-sources
+```
+
+| Without `--mirror-sources` | With `--mirror-sources` |
+|----------------------------|-------------------------|
+| `api/my_module.md` | `api/src/lib/my_module.md` |
+| `api/other_module.md` | `api/src/app/other_module.md` |
+
+Sidebar links and cross-reference URLs are updated automatically to match. The sidebar groups also switch from human-readable labels to real directory paths (see [Sidebar → Mirroring Source Directory Structure](./sidebar#mirroring-source-directory-structure)).
+
+## Mermaid Diagrams
+
+Passing `--diagrams` embeds Mermaid diagram blocks in every generated page:
+
+```bash
+formal generate --diagrams
+# or combine both flags:
+formal generate --mirror-sources --diagrams
+```
+
+Three diagram types are generated from data already present in FORD's correlated object model:
+
+| Diagram | Where it appears | Source data |
+|---------|-----------------|-------------|
+| **Dependency graph** | Module page, below the source path | `module.uses` |
+| **Inheritance diagram** | Each derived type section | `type.extends` + child types |
+| **Call graph** | Each subroutine/function section | `proc.calls` + inverse lookup |
+
+Example dependency diagram in Markdown:
+
+````markdown
+**Dependencies**
+
+```mermaid
+graph LR
+  penf["penf"] --> penf_global_parameters_variables["penf_global_parameters_variables"]
+  penf["penf"] --> penf_b_size["penf_b_size"]
+```
+````
+
+Example call graph showing callers (inbound) and callees (outbound), with the current procedure highlighted:
+
+````markdown
+**Call graph**
+
+```mermaid
+flowchart TD
+  strf_r8p["strf_r8p"] --> str_r8p["str_r8p"]
+  style str_r8p fill:#dde,stroke:#99b,stroke-width:2px
+```
+````
+
+### Enabling Mermaid in VitePress
+
+Diagrams require `vitepress-plugin-mermaid`. For **new projects**, pass `--mermaid` to `formal init` and it is wired up automatically:
+
+```bash
+formal init --mermaid
+cd docs && npm install
+formal generate --diagrams
+```
+
+For an **existing site**, install manually and wrap the config:
+
+```bash
+npm i vitepress-plugin-mermaid mermaid -D
+```
+
+```typescript
+// .vitepress/config.mts
+import { withMermaid } from 'vitepress-plugin-mermaid'  // replace defineConfig import
+import apiSidebar from '../api/_sidebar.json'
+
+export default withMermaid({           // replace defineConfig(
+  // ... your existing config unchanged ...
+  mermaid: {},
+})
+```
+
 ## Customizing API Output
 
 FORMAL's generator is in `src/formal/generator.py`. The formatting functions are modular and can be modified independently:
@@ -129,18 +213,23 @@ FORMAL's generator is in `src/formal/generator.py`. The formatting functions are
 | `format_bound_proc_table()` | Type-bound procedure tables |
 | `format_interface()` | Interface sections |
 | `generate_sidebar()` | Sidebar grouping logic |
-| `_classify_module()` | How modules map to sidebar groups |
+| `_classify_module()` | How modules map to sidebar groups (default mode) |
+| `format_dependency_diagram()` | Module dependency graph block |
+| `format_inheritance_diagram()` | Type inheritance diagram block |
+| `format_call_diagram()` | Procedure call graph block |
+| `build_called_by_index()` | Project-wide callee→callers mapping |
+| `build_type_children_index()` | Project-wide parent→children type mapping |
 | `inline_doc()` | How doc comments appear in table cells |
 | `format_doc()` | How doc comments appear in block content |
 
 ### Sidebar Grouping
 
 By default, `_classify_module()` groups modules by their source path:
-- `src/app/<name>/...` -> `Applications / NAME`
-- `src/lib/<name>/...` -> `Library / name`
-- Other paths -> grouped by first two directory components
+- `src/app/<name>/...` → `Applications / NAME`
+- `src/lib/<name>/...` → `Library / name`
+- Other paths → grouped by first two directory components
 
-To change grouping, override `_classify_module()` or process the sidebar JSON after generation.
+With `--mirror-sources`, the group name is the raw source directory path (e.g. `src/lib`, `src/tests`). To change grouping in default mode, override `_classify_module()` or post-process the sidebar JSON after generation.
 
 ## Programmatic Usage
 
@@ -153,6 +242,8 @@ from formal.generator import generate
 result = generate(
     project_file=Path("doc/formal.md"),
     output_dir=Path("docs/api"),
+    mirror_sources=True,   # mirror source tree in output
+    diagrams=True,         # embed Mermaid diagrams
     verbose=True,
 )
 print(f"Generated {result['modules']} module pages")

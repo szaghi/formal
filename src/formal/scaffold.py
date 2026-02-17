@@ -86,6 +86,7 @@ def init_vitepress_site(
     description: str = "",
     enable_math: bool = True,
     enable_fortran: bool = True,
+    enable_mermaid: bool = False,
 ) -> None:
     """Scaffold a minimal VitePress docs site if one doesn't already exist.
 
@@ -98,6 +99,8 @@ def init_vitepress_site(
         description: Short project description.
         enable_math: Include markdown-it-mathjax3 and math config.
         enable_fortran: Include Fortran syntax highlighting aliases.
+        enable_mermaid: Include vitepress-plugin-mermaid and wrap config with
+            ``withMermaid`` so that fenced Mermaid blocks render in the browser.
     """
     docs_dir.mkdir(parents=True, exist_ok=True)
 
@@ -107,6 +110,9 @@ def init_vitepress_site(
         deps = {"vitepress": "^1.6.3"}
         if enable_math:
             deps["markdown-it-mathjax3"] = "^4.3.2"
+        if enable_mermaid:
+            deps["vitepress-plugin-mermaid"] = "^2.0.0"
+            deps["mermaid"] = "^11.0.0"
 
         pkg = {
             "private": True,
@@ -126,7 +132,10 @@ def init_vitepress_site(
     config_dir.mkdir(exist_ok=True)
     config_file = config_dir / "config.mts"
     if not config_file.exists():
-        config_file.write_text(_generate_config(project_name, description, enable_math, enable_fortran), encoding="utf-8")
+        config_file.write_text(
+            _generate_config(project_name, description, enable_math, enable_fortran, enable_mermaid),
+            encoding="utf-8",
+        )
         print(f"  Created {config_file}")
 
     # index.md
@@ -162,13 +171,18 @@ def _generate_config(
     description: str,
     enable_math: bool,
     enable_fortran: bool,
+    enable_mermaid: bool = False,
 ) -> str:
     """Generate VitePress config.mts content."""
     lines = []
-    lines.append("import { defineConfig } from 'vitepress'")
+    if enable_mermaid:
+        lines.append("import { withMermaid } from 'vitepress-plugin-mermaid'")
+    else:
+        lines.append("import { defineConfig } from 'vitepress'")
     lines.append("import apiSidebar from '../api/_sidebar.json'")
     lines.append("")
-    lines.append("export default defineConfig({")
+    wrapper = "withMermaid" if enable_mermaid else "defineConfig"
+    lines.append(f"export default {wrapper}({{")
     lines.append(f"  title: '{project_name} Documentation',")
     if description:
         lines.append(f"  description: '{description}',")
@@ -206,6 +220,8 @@ def _generate_config(
     lines.append("      provider: 'local',")
     lines.append("    },")
     lines.append("  },")
+    if enable_mermaid:
+        lines.append("  mermaid: {},")
     lines.append("})")
     lines.append("")
     return "\n".join(lines)

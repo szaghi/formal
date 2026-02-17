@@ -26,6 +26,20 @@ your-project/
         └── *.md                # One page per Fortran module
 ```
 
+With `--mirror-sources`, the `api/` directory reproduces the Fortran source tree instead of placing all pages at the top level:
+
+```
+    └── api/
+        ├── index.md
+        ├── _sidebar.json
+        └── src/
+            ├── lib/
+            │   ├── my_module.md
+            │   └── another_module.md
+            └── app/
+                └── main_module.md
+```
+
 You add hand-written pages as `.md` files anywhere under `docs/`. The `api/` directory is managed by FORMAL and regenerated on each run.
 
 ## How VitePress Turns Markdown into a Site

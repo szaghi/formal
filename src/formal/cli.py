@@ -82,6 +82,11 @@ def main(argv=None):
         action="store_true",
         help="Disable Fortran syntax highlighting aliases",
     )
+    init_parser.add_argument(
+        "--mermaid",
+        action="store_true",
+        help="Add vitepress-plugin-mermaid to package.json and wrap config with withMermaid",
+    )
 
     # --- generate command ---
     gen_parser = subparsers.add_parser(
@@ -109,6 +114,11 @@ def main(argv=None):
         "--mirror-sources",
         action="store_true",
         help="Mirror source directory structure in output (e.g. api/src/lib/module.md)",
+    )
+    gen_parser.add_argument(
+        "--diagrams",
+        action="store_true",
+        help="Embed Mermaid dependency, inheritance, and call-graph diagrams in each page",
     )
     gen_parser.add_argument(
         "--quiet",
@@ -190,6 +200,7 @@ def cmd_init(args) -> int:
         project_name=project_name,
         enable_math=not args.no_math,
         enable_fortran=not args.no_fortran_highlight,
+        enable_mermaid=args.mermaid,
     )
 
     print(f"\nDone! Next steps:")
@@ -234,6 +245,7 @@ def cmd_generate(args) -> int:
         output_dir=output_dir,
         src_root=args.src_root,
         mirror_sources=args.mirror_sources,
+        diagrams=args.diagrams,
         verbose=not args.quiet,
     )
 

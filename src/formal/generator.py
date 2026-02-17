@@ -324,7 +324,12 @@ def format_variable_table(
     return "\n".join(lines)
 
 
-def format_procedure(proc, link_index: Optional[dict] = None) -> str:
+def format_procedure(
+    proc,
+    link_index: Optional[dict] = None,
+    called_by_index: Optional[dict] = None,
+    show_diagrams: bool = False,
+) -> str:
     """Format a subroutine or function section."""
     lines = []
 
@@ -367,6 +372,13 @@ def format_procedure(proc, link_index: Optional[dict] = None) -> str:
         lines.append(format_variable_table(real_args, show_intent=True, link_index=link_index))
         lines.append("")
 
+    if show_diagrams and called_by_index is not None:
+        diagram = format_call_diagram(proc, called_by_index)
+        if diagram:
+            lines.append("**Call graph**\n")
+            lines.append(diagram)
+            lines.append("")
+
     return "\n".join(lines)
 
 
@@ -389,7 +401,12 @@ def format_bound_proc_table(boundprocs: list, link_index: Optional[dict] = None)
     return "\n".join(lines)
 
 
-def format_type(dtype, link_index: Optional[dict] = None) -> str:
+def format_type(
+    dtype,
+    link_index: Optional[dict] = None,
+    type_children_index: Optional[dict] = None,
+    show_diagrams: bool = False,
+) -> str:
     """Format a derived type section."""
     lines = []
 
@@ -399,6 +416,13 @@ def format_type(dtype, link_index: Optional[dict] = None) -> str:
     if doc:
         lines.append(doc)
         lines.append("")
+
+    if show_diagrams and type_children_index is not None:
+        diagram = format_inheritance_diagram(dtype, type_children_index)
+        if diagram:
+            lines.append("**Inheritance**\n")
+            lines.append(diagram)
+            lines.append("")
 
     if dtype.extends:
         extends_name = dtype.extends.name if hasattr(dtype.extends, "name") else str(dtype.extends)
@@ -467,6 +491,9 @@ def format_module(
     module,
     src_root: Optional[str] = None,
     link_index: Optional[dict] = None,
+    called_by_index: Optional[dict] = None,
+    type_children_index: Optional[dict] = None,
+    show_diagrams: bool = False,
 ) -> str:
     """Generate a full Markdown page for a module.
 
@@ -475,6 +502,12 @@ def format_module(
         src_root: Optional root path to strip for relative source paths.
         link_index: Optional name→URL mapping from :func:`build_entity_index`
                     used to resolve ``[[name]]`` cross-references.
+        called_by_index: Optional project-wide callee→callers mapping from
+                         :func:`build_called_by_index`, used for call diagrams.
+        type_children_index: Optional project-wide parent→children mapping from
+                             :func:`build_type_children_index`, used for
+                             inheritance diagrams.
+        show_diagrams: Emit Mermaid diagram blocks when True.
 
     Returns:
         A string containing the complete Markdown page content.
@@ -495,6 +528,13 @@ def format_module(
     src_path = get_source_path(module, src_root)
     if src_path:
         lines.append(f"**Source**: `{src_path}`\n")
+
+    if show_diagrams:
+        dep_diagram = format_dependency_diagram(module)
+        if dep_diagram:
+            lines.append("**Dependencies**\n")
+            lines.append(dep_diagram)
+            lines.append("")
 
     toc_items = []
     for dtype in module.types:
@@ -518,7 +558,11 @@ def format_module(
     if module.types:
         lines.append("## Derived Types\n")
         for dtype in module.types:
-            lines.append(format_type(dtype, link_index))
+            lines.append(format_type(
+                dtype, link_index,
+                type_children_index=type_children_index,
+                show_diagrams=show_diagrams,
+            ))
 
     if module.interfaces:
         lines.append("## Interfaces\n")
@@ -529,14 +573,119 @@ def format_module(
     if subs:
         lines.append("## Subroutines\n")
         for sub in subs:
-            lines.append(format_procedure(sub, link_index))
+            lines.append(format_procedure(
+                sub, link_index,
+                called_by_index=called_by_index,
+                show_diagrams=show_diagrams,
+            ))
 
     funcs = list(module.functions) if module.functions else []
     if funcs:
         lines.append("## Functions\n")
         for func in funcs:
-            lines.append(format_procedure(func, link_index))
+            lines.append(format_procedure(
+                func, link_index,
+                called_by_index=called_by_index,
+                show_diagrams=show_diagrams,
+            ))
 
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Mermaid diagram generation
+# ---------------------------------------------------------------------------
+
+def _mid(name: str) -> str:
+    """Return a Mermaid node declaration with a quoted label: id["label"]."""
+    return f'{name}["{name}"]'
+
+
+def build_called_by_index(project) -> dict[str, list[str]]:
+    """Build a project-wide mapping: callee name (lower) → list of caller names.
+
+    Inverts all ``proc.calls`` relationships so that each procedure knows
+    which other procedures call it.
+    """
+    index: dict[str, list[str]] = {}
+    for module in project.modules:
+        for proc in list(module.subroutines or []) + list(module.functions or []):
+            for called in getattr(proc, "calls", None) or []:
+                if hasattr(called, "name"):
+                    callee = called.name.lower()
+                elif isinstance(called, str):
+                    # Unresolved call chain: take the last dotted component
+                    callee = called.lower().split("%")[-1]
+                else:
+                    continue
+                index.setdefault(callee, []).append(proc.name)
+    return index
+
+
+def build_type_children_index(project) -> dict[str, list[str]]:
+    """Build a project-wide mapping: parent type name (lower) → child type names."""
+    index: dict[str, list[str]] = {}
+    for module in project.modules:
+        for dtype in module.types:
+            if dtype.extends and hasattr(dtype.extends, "name"):
+                index.setdefault(dtype.extends.name.lower(), []).append(dtype.name)
+    return index
+
+
+def format_dependency_diagram(module) -> str:
+    """Return a Mermaid graph block showing which modules this module uses.
+
+    Returns an empty string if the module has no USE dependencies.
+    """
+    uses = getattr(module, "uses", None)
+    if not uses:
+        return ""
+    deps = sorted(u.name for u in uses if hasattr(u, "name"))
+    if not deps:
+        return ""
+    lines = ["```mermaid", "graph LR"]
+    for dep in deps:
+        lines.append(f"  {_mid(module.name)} --> {_mid(dep)}")
+    lines.append("```")
+    return "\n".join(lines)
+
+
+def format_inheritance_diagram(dtype, type_children_index: dict) -> str:
+    """Return a Mermaid class diagram showing direct inheritance around a type.
+
+    Shows the parent type (if any) and all known child types.
+    Returns an empty string when the type has neither.
+    """
+    has_parent = bool(dtype.extends and hasattr(dtype.extends, "name"))
+    children = type_children_index.get(dtype.name.lower(), [])
+    if not has_parent and not children:
+        return ""
+    lines = ["```mermaid", "classDiagram"]
+    if has_parent:
+        lines.append(f"  {dtype.extends.name} <|-- {dtype.name}")
+    for child in sorted(children):
+        lines.append(f"  {dtype.name} <|-- {child}")
+    lines.append("```")
+    return "\n".join(lines)
+
+
+def format_call_diagram(proc, called_by_index: dict) -> str:
+    """Return a Mermaid flowchart showing calls to and from a procedure.
+
+    Callers of *proc* flow into the central node; callees flow out.
+    Returns an empty string when no call relationships are found.
+    """
+    calls = [c for c in (getattr(proc, "calls", None) or []) if hasattr(c, "name")]
+    callers = called_by_index.get(proc.name.lower(), [])
+    if not calls and not callers:
+        return ""
+    lines = ["```mermaid", "flowchart TD"]
+    for caller in sorted(callers):
+        lines.append(f"  {_mid(caller)} --> {_mid(proc.name)}")
+    for called in sorted(calls, key=lambda c: c.name):
+        lines.append(f"  {_mid(proc.name)} --> {_mid(called.name)}")
+    lines.append(f"  style {proc.name} fill:#dde,stroke:#99b,stroke-width:2px")
+    lines.append("```")
     return "\n".join(lines)
 
 
@@ -635,6 +784,7 @@ def generate(
     api_prefix: str = "/api/",
     src_root: Optional[str] = None,
     mirror_sources: bool = False,
+    diagrams: bool = False,
     verbose: bool = True,
 ) -> dict[str, Any]:
     """Generate VitePress API documentation from a FORD project file.
@@ -649,6 +799,8 @@ def generate(
         mirror_sources: If True, reproduce the source directory tree inside
             *output_dir* (e.g. ``api/src/lib/penf.md``) instead of placing
             all files flat at the top level.
+        diagrams: If True, embed Mermaid dependency, inheritance, and call-graph
+            diagrams in each module page (requires vitepress-plugin-mermaid).
         verbose: Print progress to stdout.
 
     Returns:
@@ -668,12 +820,22 @@ def generate(
         project, api_prefix, src_root=src_root, mirror_sources=mirror_sources
     )
 
+    called_by_idx = build_called_by_index(project) if diagrams else None
+    type_children_idx = build_type_children_index(project) if diagrams else None
+
     output_dir.mkdir(parents=True, exist_ok=True)
     written_files = []
 
     # Generate per-module pages
     for module in modules:
-        md = format_module(module, src_root=src_root, link_index=link_index)
+        md = format_module(
+            module,
+            src_root=src_root,
+            link_index=link_index,
+            called_by_index=called_by_idx,
+            type_children_index=type_children_idx,
+            show_diagrams=diagrams,
+        )
         if mirror_sources:
             src_path = get_source_path(module, src_root)
             src_subdir = Path(src_path).parent
