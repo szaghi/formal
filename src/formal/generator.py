@@ -552,15 +552,17 @@ def generate_sidebar(
 ) -> list:
     """Generate VitePress sidebar items grouped by source directory structure.
 
-    Modules are grouped by the first two path components under the source root
-    (e.g. 'app/nasto', 'lib/common'). Group names are title-cased.
+    With ``mirror_sources=False`` modules are grouped by the human-readable
+    classification from :func:`_classify_module` (e.g. 'Library / penf').
+    With ``mirror_sources=True`` the group name is the actual source directory
+    path (e.g. 'src/lib', 'src/tests'), mirroring the output layout.
 
     Args:
         modules: List of FORD FortranModule objects.
         src_root: Optional root path for relative path computation.
         api_prefix: URL prefix for sidebar links (default: '/api/').
-        mirror_sources: If True, include source subdirectory in link paths
-            to match a mirrored output layout (e.g. ``/api/src/lib/penf``).
+        mirror_sources: If True, group by real source directory path and
+            include it in link paths to match the mirrored output layout.
 
     Returns:
         A list of sidebar group dicts suitable for VitePress config.
@@ -570,7 +572,10 @@ def generate_sidebar(
 
     for module in modules:
         path = get_source_path(module, src_root)
-        group = _classify_module(path)
+        if mirror_sources:
+            group = str(Path(path).parent)
+        else:
+            group = _classify_module(path)
         rel_url = _module_rel_url(module, src_root, mirror_sources)
         groups.setdefault(group, []).append((module.name, rel_url))
 
