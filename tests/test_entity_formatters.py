@@ -342,10 +342,10 @@ class TestFormatModuleTOC:
             functions=[func],
         )
         result = format_module(module)
-        assert "- [config_t](#config_t)" in result
-        assert "- [generic_op](#generic_op)" in result
-        assert "- [my_sub](#my_sub)" in result
-        assert "- [my_func](#my_func)" in result
+        assert "- [config_t](#config-t)" in result
+        assert "- [generic_op](#generic-op)" in result
+        assert "- [my_sub](#my-sub)" in result
+        assert "- [my_func](#my-func)" in result
 
     def test_toc_anchor_is_lowercase(self):
         dtype = MockType(name="MyUpperType")

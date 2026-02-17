@@ -43,6 +43,16 @@ _TYPE_PAREN_RE = re.compile(r"\b(type|class)\((\w+)\)", re.IGNORECASE)
 _KIND_EQ_RE = re.compile(r"\bkind=(\w+)", re.IGNORECASE)
 
 
+def slugify(name: str) -> str:
+    """Convert an entity name to a VitePress-compatible anchor slug.
+
+    VitePress (via @mdit-vue/shared) lowercases heading text and replaces
+    runs of whitespace, underscores, and hyphens with a single hyphen, so
+    ``strf_r8p`` becomes ``strf-r8p`` in the rendered HTML anchor.
+    """
+    return re.sub(r"[\s_-]+", "-", name.lower()).strip("-")
+
+
 def build_entity_index(project, api_prefix: str = "/api/") -> dict[str, str]:
     """Build a lowercase name→URL mapping from the FORD project's entity graph.
 
@@ -64,20 +74,17 @@ def build_entity_index(project, api_prefix: str = "/api/") -> dict[str, str]:
         index[mod_key] = f"{prefix}/{module.name}"
 
         for dtype in module.types:
-            anchor = dtype.name.lower()
-            url = f"{prefix}/{module.name}#{anchor}"
+            url = f"{prefix}/{module.name}#{slugify(dtype.name)}"
             index[dtype.name.lower()] = url
             index[f"{mod_key}:{dtype.name.lower()}"] = url
 
         for proc in list(module.subroutines) + list(module.functions):
-            anchor = proc.name.lower()
-            url = f"{prefix}/{module.name}#{anchor}"
+            url = f"{prefix}/{module.name}#{slugify(proc.name)}"
             index[proc.name.lower()] = url
             index[f"{mod_key}:{proc.name.lower()}"] = url
 
         for iface in module.interfaces:
-            anchor = iface.name.lower()
-            url = f"{prefix}/{module.name}#{anchor}"
+            url = f"{prefix}/{module.name}#{slugify(iface.name)}"
             index[iface.name.lower()] = url
             index[f"{mod_key}:{iface.name.lower()}"] = url
 
@@ -465,13 +472,13 @@ def format_module(
 
     toc_items = []
     for dtype in module.types:
-        toc_items.append(f"- [{dtype.name}](#{dtype.name.lower()})")
+        toc_items.append(f"- [{dtype.name}](#{slugify(dtype.name)})")
     for iface in module.interfaces:
-        toc_items.append(f"- [{iface.name}](#{iface.name.lower()})")
+        toc_items.append(f"- [{iface.name}](#{slugify(iface.name)})")
     for sub in (module.subroutines or []):
-        toc_items.append(f"- [{sub.name}](#{sub.name.lower()})")
+        toc_items.append(f"- [{sub.name}](#{slugify(sub.name)})")
     for func in (module.functions or []):
-        toc_items.append(f"- [{func.name}](#{func.name.lower()})")
+        toc_items.append(f"- [{func.name}](#{slugify(func.name)})")
     if toc_items:
         lines.append("## Contents\n")
         lines.extend(toc_items)

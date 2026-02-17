@@ -11,6 +11,7 @@ from formal.generator import (
     build_entity_index,
     resolve_links,
     linkify_type_str,
+    slugify,
 )
 from mocks import MockVariable, MockModule, MockType, MockProcedure, MockInterface, MockProject
 
@@ -55,6 +56,33 @@ class TestEscapePipe:
 
     def test_empty_string(self):
         assert escape_pipe("") == ""
+
+
+# ---------------------------------------------------------------------------
+# slugify
+# ---------------------------------------------------------------------------
+
+class TestSlugify:
+    def test_lowercase(self):
+        assert slugify("MyType") == "mytype"
+
+    def test_underscore_becomes_hyphen(self):
+        assert slugify("strf_r8p") == "strf-r8p"
+
+    def test_multiple_underscores(self):
+        assert slugify("my_long_name") == "my-long-name"
+
+    def test_no_underscores_unchanged(self):
+        assert slugify("mytype") == "mytype"
+
+    def test_mixed_case_and_underscores(self):
+        assert slugify("My_Type") == "my-type"
+
+    def test_already_hyphenated(self):
+        assert slugify("my-type") == "my-type"
+
+    def test_consecutive_underscores_single_hyphen(self):
+        assert slugify("a__b") == "a-b"
 
 
 # ---------------------------------------------------------------------------
@@ -199,22 +227,22 @@ class TestBuildEntityIndex:
     def test_subroutine_indexed(self):
         project = self._make_project()
         index = build_entity_index(project)
-        assert index["my_sub"] == "/api/my_module#my_sub"
+        assert index["my_sub"] == "/api/my_module#my-sub"
 
     def test_function_indexed(self):
         project = self._make_project()
         index = build_entity_index(project)
-        assert index["my_func"] == "/api/my_module#my_func"
+        assert index["my_func"] == "/api/my_module#my-func"
 
     def test_interface_indexed(self):
         project = self._make_project()
         index = build_entity_index(project)
-        assert index["my_iface"] == "/api/my_module#my_iface"
+        assert index["my_iface"] == "/api/my_module#my-iface"
 
     def test_compound_proc_key(self):
         project = self._make_project()
         index = build_entity_index(project)
-        assert index["my_module:my_sub"] == "/api/my_module#my_sub"
+        assert index["my_module:my_sub"] == "/api/my_module#my-sub"
 
     def test_custom_api_prefix(self):
         project = self._make_project()
