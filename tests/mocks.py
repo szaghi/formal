@@ -86,3 +86,9 @@ class MockModule:
 class MockModProc:
     """Mock of a FORD module procedure reference."""
     name: str = "mp"
+
+
+@dataclass
+class MockProject:
+    """Mock of a correlated FORD Project object."""
+    modules: list = field(default_factory=list)
