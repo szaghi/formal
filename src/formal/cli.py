@@ -106,6 +106,11 @@ def main(argv=None):
         help="Root path to strip from source file paths in output",
     )
     gen_parser.add_argument(
+        "--mirror-sources",
+        action="store_true",
+        help="Mirror source directory structure in output (e.g. api/src/lib/module.md)",
+    )
+    gen_parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress progress output",
@@ -228,6 +233,7 @@ def cmd_generate(args) -> int:
         project_file=project_file,
         output_dir=output_dir,
         src_root=args.src_root,
+        mirror_sources=args.mirror_sources,
         verbose=not args.quiet,
     )
 

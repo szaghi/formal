@@ -53,7 +53,28 @@ def slugify(name: str) -> str:
     return re.sub(r"[\s_-]+", "-", name.lower()).strip("-")
 
 
-def build_entity_index(project, api_prefix: str = "/api/") -> dict[str, str]:
+def _module_rel_url(module, src_root: Optional[str] = None, mirror_sources: bool = False) -> str:
+    """Return the URL path for a module relative to the api prefix.
+
+    With ``mirror_sources=False`` (default) returns just the module name (e.g. ``'penf'``).
+    With ``mirror_sources=True`` returns the source subdirectory prepended
+    (e.g. ``'src/lib/penf'``).
+    """
+    if not mirror_sources:
+        return module.name
+    src_path = get_source_path(module, src_root)
+    src_dir = str(Path(src_path).parent)
+    if src_dir and src_dir != ".":
+        return f"{src_dir}/{module.name}"
+    return module.name
+
+
+def build_entity_index(
+    project,
+    api_prefix: str = "/api/",
+    src_root: Optional[str] = None,
+    mirror_sources: bool = False,
+) -> dict[str, str]:
     """Build a lowercase name→URL mapping from the FORD project's entity graph.
 
     Supports bare name lookup (``foo``) and compound ``parent:child`` lookup.
@@ -62,6 +83,9 @@ def build_entity_index(project, api_prefix: str = "/api/") -> dict[str, str]:
     Args:
         project: A correlated FORD Project object.
         api_prefix: URL prefix for API pages (default: '/api/').
+        src_root: Optional root path for relative source path computation.
+        mirror_sources: If True, include the source subdirectory in URLs so
+            that links match the mirrored output layout (e.g. ``/api/src/lib/penf``).
 
     Returns:
         A dict mapping lowercased entity names to their VitePress URL strings.
@@ -71,25 +95,27 @@ def build_entity_index(project, api_prefix: str = "/api/") -> dict[str, str]:
 
     for module in project.modules:
         mod_key = module.name.lower()
-        index[mod_key] = f"{prefix}/{module.name}"
+        rel_url = _module_rel_url(module, src_root, mirror_sources)
+        mod_url = f"{prefix}/{rel_url}"
+        index[mod_key] = mod_url
 
         for dtype in module.types:
-            url = f"{prefix}/{module.name}#{slugify(dtype.name)}"
+            url = f"{mod_url}#{slugify(dtype.name)}"
             index[dtype.name.lower()] = url
             index[f"{mod_key}:{dtype.name.lower()}"] = url
 
         for proc in list(module.subroutines) + list(module.functions):
-            url = f"{prefix}/{module.name}#{slugify(proc.name)}"
+            url = f"{mod_url}#{slugify(proc.name)}"
             index[proc.name.lower()] = url
             index[f"{mod_key}:{proc.name.lower()}"] = url
 
         for iface in module.interfaces:
-            url = f"{prefix}/{module.name}#{slugify(iface.name)}"
+            url = f"{mod_url}#{slugify(iface.name)}"
             index[iface.name.lower()] = url
             index[f"{mod_key}:{iface.name.lower()}"] = url
 
         for var in module.variables:
-            index[var.name.lower()] = f"{prefix}/{module.name}"
+            index[var.name.lower()] = mod_url
 
     return index
 
@@ -518,7 +544,12 @@ def format_module(
 # Sidebar generation
 # ---------------------------------------------------------------------------
 
-def generate_sidebar(modules: list, src_root: Optional[str] = None) -> list:
+def generate_sidebar(
+    modules: list,
+    src_root: Optional[str] = None,
+    api_prefix: str = "/api/",
+    mirror_sources: bool = False,
+) -> list:
     """Generate VitePress sidebar items grouped by source directory structure.
 
     Modules are grouped by the first two path components under the source root
@@ -527,24 +558,29 @@ def generate_sidebar(modules: list, src_root: Optional[str] = None) -> list:
     Args:
         modules: List of FORD FortranModule objects.
         src_root: Optional root path for relative path computation.
+        api_prefix: URL prefix for sidebar links (default: '/api/').
+        mirror_sources: If True, include source subdirectory in link paths
+            to match a mirrored output layout (e.g. ``/api/src/lib/penf``).
 
     Returns:
         A list of sidebar group dicts suitable for VitePress config.
     """
-    groups: dict[str, list[str]] = {}
+    prefix = api_prefix.rstrip("/")
+    groups: dict[str, list] = {}
 
     for module in modules:
         path = get_source_path(module, src_root)
         group = _classify_module(path)
-        groups.setdefault(group, []).append(module.name)
+        rel_url = _module_rel_url(module, src_root, mirror_sources)
+        groups.setdefault(group, []).append((module.name, rel_url))
 
     sidebar_items = []
     for group_name in sorted(groups.keys()):
-        items = sorted(groups[group_name])
+        items = sorted(groups[group_name], key=lambda x: x[0])
         sidebar_items.append({
             "text": group_name,
             "collapsed": True,
-            "items": [{"text": name, "link": f"/api/{name}"} for name in items],
+            "items": [{"text": name, "link": f"{prefix}/{rel_url}"} for name, rel_url in items],
         })
 
     return sidebar_items
@@ -593,6 +629,7 @@ def generate(
     output_dir: Path,
     api_prefix: str = "/api/",
     src_root: Optional[str] = None,
+    mirror_sources: bool = False,
     verbose: bool = True,
 ) -> dict[str, Any]:
     """Generate VitePress API documentation from a FORD project file.
@@ -604,6 +641,9 @@ def generate(
         output_dir: Directory to write generated .md files into.
         api_prefix: URL prefix for API links in sidebar (default: '/api/').
         src_root: Root path to strip from source file paths. If None, auto-detected.
+        mirror_sources: If True, reproduce the source directory tree inside
+            *output_dir* (e.g. ``api/src/lib/penf.md``) instead of placing
+            all files flat at the top level.
         verbose: Print progress to stdout.
 
     Returns:
@@ -619,7 +659,9 @@ def generate(
     if verbose:
         print(f"Found {len(modules)} modules")
 
-    link_index = build_entity_index(project, api_prefix)
+    link_index = build_entity_index(
+        project, api_prefix, src_root=src_root, mirror_sources=mirror_sources
+    )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     written_files = []
@@ -627,20 +669,23 @@ def generate(
     # Generate per-module pages
     for module in modules:
         md = format_module(module, src_root=src_root, link_index=link_index)
-        out_file = output_dir / f"{module.name}.md"
+        if mirror_sources:
+            src_path = get_source_path(module, src_root)
+            src_subdir = Path(src_path).parent
+            out_subdir = output_dir / src_subdir
+            out_subdir.mkdir(parents=True, exist_ok=True)
+        else:
+            out_subdir = output_dir
+        out_file = out_subdir / f"{module.name}.md"
         out_file.write_text(md, encoding="utf-8")
         written_files.append(out_file)
         if verbose:
             print(f"  -> {out_file}")
 
     # Generate sidebar JSON
-    sidebar = generate_sidebar(modules, src_root=src_root)
-
-    # Rewrite links with custom prefix if not default
-    if api_prefix != "/api/":
-        for group in sidebar:
-            for item in group["items"]:
-                item["link"] = api_prefix + item["link"].split("/api/")[-1]
+    sidebar = generate_sidebar(
+        modules, src_root=src_root, api_prefix=api_prefix, mirror_sources=mirror_sources
+    )
 
     sidebar_file = output_dir / "_sidebar.json"
     sidebar_file.write_text(json.dumps(sidebar, indent=2), encoding="utf-8")
