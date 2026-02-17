@@ -106,7 +106,8 @@ def init_vitepress_site(
 
     # package.json
     pkg_file = docs_dir / "package.json"
-    if not pkg_file.exists():
+    pkg_existed = pkg_file.exists()
+    if not pkg_existed:
         deps = {"vitepress": "^1.6.3"}
         if enable_math:
             deps["markdown-it-mathjax3"] = "^4.3.2"
@@ -131,12 +132,31 @@ def init_vitepress_site(
     config_dir = docs_dir / ".vitepress"
     config_dir.mkdir(exist_ok=True)
     config_file = config_dir / "config.mts"
-    if not config_file.exists():
+    config_existed = config_file.exists()
+    if not config_existed:
         config_file.write_text(
             _generate_config(project_name, description, enable_math, enable_fortran, enable_mermaid),
             encoding="utf-8",
         )
         print(f"  Created {config_file}")
+
+    # Warn when --mermaid was requested but existing files were not modified
+    if enable_mermaid and (pkg_existed or config_existed):
+        print("\n  Warning: --mermaid requested but the following files already exist and were not modified:")
+        if pkg_existed:
+            print(f"    {pkg_file}")
+        if config_existed:
+            print(f"    {config_file}")
+        print("  Apply these changes manually to enable Mermaid rendering:")
+        if pkg_existed:
+            print("    npm i vitepress-plugin-mermaid mermaid -D")
+        if config_existed:
+            print("    In .vitepress/config.mts:")
+            print("      replace: import { defineConfig } from 'vitepress'")
+            print("      with:    import { withMermaid } from 'vitepress-plugin-mermaid'")
+            print("      replace: export default defineConfig({")
+            print("      with:    export default withMermaid({")
+            print("      add:     mermaid: {},  inside the config object")
 
     # index.md
     index_file = docs_dir / "index.md"
