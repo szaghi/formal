@@ -8,8 +8,10 @@ Generate beautiful API documentation websites for Fortran projects. FORMAL bridg
 
 Projects using FORMAL for their API documentation:
 
-- **[PENF](https://szaghi.github.io/PENF/)** — Portability Environment for Fortran poor people &nbsp;|&nbsp; [GitHub](https://github.com/szaghi/PENF)
+- **[BeFoR64](https://szaghi.github.io/BeFoR64/)** — Base64 encoding/decoding library for Fortran &nbsp;|&nbsp; [GitHub](https://github.com/szaghi/BeFoR64)
 - **[FACE](https://szaghi.github.io/FACE/)** — Fortran ANSI Colors and Escape sequences &nbsp;|&nbsp; [GitHub](https://github.com/szaghi/FACE)
+- **[FLAP](https://szaghi.github.io/FLAP/)** — Fortran command Line Arguments Parser for poor people &nbsp;|&nbsp; [GitHub](https://github.com/szaghi/FLAP)
+- **[PENF](https://szaghi.github.io/PENF/)** — Portability Environment for Fortran poor people &nbsp;|&nbsp; [GitHub](https://github.com/szaghi/PENF)
 
 ## Features
 
@@ -23,6 +25,14 @@ Projects using FORMAL for their API documentation:
 - Works with any FORD-compatible Fortran project
 
 See the [Documentation Guide](https://szaghi.github.io/formal/).
+
+## Author
+
+**Stefano Zaghi** -- [szaghi](https://github.com/szaghi)
+
+## License
+
+[MIT License](LICENSE)
 
 ## Installation
 
@@ -397,16 +407,7 @@ The version is stored in two files that the `bump` / `release` commands update t
 - A [PyPI account](https://pypi.org/account/register/) with an [API token](https://pypi.org/manage/account/token/)
 - `build` and `twine` available via pip or pipx (the script auto-detects both)
 
-## Author
-
-**Stefano Zaghi** -- [szaghi](https://github.com/szaghi)
-
-## License
-
-[MIT License](LICENSE)
-
 ## Acknowledgments
 
 - [FORD](https://github.com/Fortran-FOSS-Programmers/ford) by Chris MacMackin -- the Fortran parser that makes this possible
 - [VitePress](https://vitepress.dev) -- the static site generator
-- The ADAM development team for the original use case
