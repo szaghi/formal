@@ -30,9 +30,14 @@ See the [Documentation Guide](https://szaghi.github.io/formal/).
 
 **Stefano Zaghi** -- [szaghi](https://github.com/szaghi)
 
-## License
+## Copyrights
 
-[MIT License](LICENSE)
+This project is distributed under a multi-licensing system:
+
+- **FOSS projects**: [GPL v3](http://www.gnu.org/licenses/gpl-3.0.html)
+- **Closed source / commercial**: [BSD 2-Clause](http://opensource.org/licenses/BSD-2-Clause), [BSD 3-Clause](http://opensource.org/licenses/BSD-3-Clause), or [MIT](http://opensource.org/licenses/MIT)
+
+> Anyone interested in using, developing, or contributing to this project is welcome — pick the license that best fits your needs.
 
 ## Installation
 
