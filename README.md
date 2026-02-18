@@ -12,6 +12,7 @@ Projects using FORMAL for their API documentation:
 - **[FACE](https://szaghi.github.io/FACE/)** — Fortran ANSI Colors and Escape sequences &nbsp;|&nbsp; [GitHub](https://github.com/szaghi/FACE)
 - **[FLAP](https://szaghi.github.io/FLAP/)** — Fortran command Line Arguments Parser for poor people &nbsp;|&nbsp; [GitHub](https://github.com/szaghi/FLAP)
 - **[PENF](https://szaghi.github.io/PENF/)** — Portability Environment for Fortran poor people &nbsp;|&nbsp; [GitHub](https://github.com/szaghi/PENF)
+- **[StringiFor](https://szaghi.github.io/StringiFor/)** — Strings Fortran Manipulator with steroids &nbsp;|&nbsp; [GitHub](https://github.com/szaghi/StringiFor)
 
 ## Features
 
