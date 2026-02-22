@@ -204,6 +204,7 @@ def _generate_config(
     wrapper = "withMermaid" if enable_mermaid else "defineConfig"
     lines.append(f"export default {wrapper}({{")
     lines.append(f"  title: '{project_name} Documentation',")
+    lines.append(f"  base: '{project_name}',")
     if description:
         lines.append(f"  description: '{description}',")
     lines.append("  markdown: {")
@@ -242,10 +243,15 @@ def _generate_config(
     lines.append("  },")
     if enable_mermaid:
         lines.append("  mermaid: {},")
+        lines.append("  vite: {                  ")
+        lines.append("    optimizeDeps: {        ")
+        lines.append("      include: ['mermaid'],")
+        lines.append("      exclude: ['debug'],  ")
+        lines.append("    },                     ")
+        lines.append("  },                       ")
     lines.append("})")
     lines.append("")
     return "\n".join(lines)
-
 
 def inject_api_sidebar(config_file: Path) -> bool:
     """Add API sidebar import to an existing VitePress config.mts.
