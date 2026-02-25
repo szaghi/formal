@@ -8,6 +8,9 @@
 #   ./scripts/build_publish.sh all                  # build + publish
 #   ./scripts/build_publish.sh release <version>    # full release: bump, build, publish, tag, push
 #   ./scripts/build_publish.sh release 1.0.0        # example: release v1.0.0
+#   ./scripts/build_publish.sh release major        # bump major component and release
+#   ./scripts/build_publish.sh release minor        # bump minor component and release
+#   ./scripts/build_publish.sh release patch        # bump patch component and release
 #
 # Requirements:
 #   pipx install build   (or: pip install build)
@@ -58,6 +61,26 @@ validate_version() {
     if ! echo "$v" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+([a-zA-Z0-9._-]*)?$'; then
         die "Invalid version '$v'. Expected format: X.Y.Z (e.g. 1.0.0, 0.2.0rc1)"
     fi
+}
+
+# Compute next version by bumping major, minor, or patch component
+bump_semver() {
+    local bump_type="$1"
+    local current
+    current="$(get_version)"
+    # Strip any pre-release suffix for arithmetic
+    local base
+    base="$(echo "$current" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')"
+    local major minor patch
+    major="$(echo "$base" | cut -d. -f1)"
+    minor="$(echo "$base" | cut -d. -f2)"
+    patch="$(echo "$base" | cut -d. -f3)"
+    case "$bump_type" in
+        major) echo "$((major + 1)).0.0" ;;
+        minor) echo "${major}.$((minor + 1)).0" ;;
+        patch) echo "${major}.${minor}.$((patch + 1))" ;;
+        *) die "bump_semver: unknown type '$bump_type'" ;;
+    esac
 }
 
 # ---------------------------------------------------------------------------
@@ -315,12 +338,18 @@ case "${1:-}" in
         do_publish pypi
         ;;
     release)
-        [ -n "${2:-}" ] || die "Usage: $0 release <version>  (e.g. $0 release 1.0.0)"
-        do_release "$2"
+        [ -n "${2:-}" ] || die "Usage: $0 release <version|major|minor|patch>"
+        case "${2}" in
+            major|minor|patch) do_release "$(bump_semver "$2")" ;;
+            *) do_release "$2" ;;
+        esac
         ;;
     bump)
-        [ -n "${2:-}" ] || die "Usage: $0 bump <version>  (e.g. $0 bump 1.0.0)"
-        do_bump "$2"
+        [ -n "${2:-}" ] || die "Usage: $0 bump <version|major|minor|patch>"
+        case "${2}" in
+            major|minor|patch) do_bump "$(bump_semver "$2")" ;;
+            *) do_bump "$2" ;;
+        esac
         ;;
     test)
         do_test
@@ -334,13 +363,16 @@ case "${1:-}" in
         echo "  publish            Upload dist/ to PyPI"
         echo "  testpublish        Upload dist/ to TestPyPI"
         echo "  all                Build then publish to PyPI"
-        echo "  bump <version>     Bump version in pyproject.toml + __init__.py"
-        echo "  release <version>  Full release: bump, commit, build, test, tag, publish, push"
+        echo "  bump <version|major|minor|patch>"
+        echo "                     Bump version in pyproject.toml + __init__.py"
+        echo "  release <version|major|minor|patch>"
+        echo "                     Full release: bump, commit, build, test, tag, publish, push"
         echo
         echo "Examples:"
-        echo "  $0 release 1.0.0   # major release"
-        echo "  $0 release 0.2.0   # minor release"
-        echo "  $0 release 0.1.1   # patch release"
+        echo "  $0 release 1.0.0   # explicit version"
+        echo "  $0 release major   # bump major (e.g. 0.2.15 -> 1.0.0)"
+        echo "  $0 release minor   # bump minor (e.g. 0.2.15 -> 0.3.0)"
+        echo "  $0 release patch   # bump patch (e.g. 0.2.15 -> 0.2.16)"
         echo "  $0 build           # build only, no publish"
         exit 1
         ;;
