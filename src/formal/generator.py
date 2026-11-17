@@ -674,17 +674,28 @@ def format_call_diagram(proc, called_by_index: dict) -> str:
 
     Callers of *proc* flow into the central node; callees flow out.
     Returns an empty string when no call relationships are found.
+
+    The graph runs left to right: callers, procedure, callees are at most three
+    columns, so its width stays bounded however many callers or callees there
+    are (top-down, they would sit side by side and a wide fan would be shrunk to
+    the page width until its labels are unreadable).
+
+    The procedure is marked with the class ``focus`` (``classDef focus``): a
+    thicker border and a bold label, no colours, so the node keeps the text
+    contrast of whatever Mermaid theme renders it. A site colours it in its own
+    stylesheet, e.g. ``.mermaid .node.focus rect { fill: ... !important }``.
     """
     calls = [c for c in (getattr(proc, "calls", None) or []) if hasattr(c, "name")]
     callers = called_by_index.get(proc.name.lower(), [])
     if not calls and not callers:
         return ""
-    lines = ["```mermaid", "flowchart TD"]
+    lines = ["```mermaid", "flowchart LR"]
     for caller in sorted(callers):
         lines.append(f"  {_mid(caller)} --> {_mid(proc.name)}")
     for called in sorted(calls, key=lambda c: c.name):
         lines.append(f"  {_mid(proc.name)} --> {_mid(called.name)}")
-    lines.append(f"  style {proc.name} fill:#3e63dd,stroke:#99b,stroke-width:2px")
+    lines.append("  classDef focus stroke-width:3px,font-weight:bold")
+    lines.append(f"  class {proc.name} focus")
     lines.append("```")
     return "\n".join(lines)
 

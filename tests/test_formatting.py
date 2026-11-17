@@ -12,6 +12,7 @@ from formal.generator import (
     resolve_links,
     linkify_type_str,
     slugify,
+    format_call_diagram,
 )
 from mocks import MockVariable, MockModule, MockType, MockProcedure, MockInterface, MockProject
 
@@ -428,3 +429,43 @@ class TestFormatTypeStrWithLinkIndex:
         var = MockVariable(full_type="type(a|b)")
         result = format_type_str(var, self._index())
         assert r"a\|b" in result
+
+
+# ---------------------------------------------------------------------------
+# format_call_diagram
+# ---------------------------------------------------------------------------
+
+class TestFormatCallDiagram:
+    """The call graph: left to right, the procedure marked by the theme-neutral class `focus`."""
+
+    @staticmethod
+    def _proc(name, calls=()):
+        from types import SimpleNamespace
+        return SimpleNamespace(name=name, calls=[SimpleNamespace(name=c) for c in calls])
+
+    def test_no_relations_empty(self):
+        assert format_call_diagram(self._proc("lonely"), {}) == ""
+
+    def test_left_to_right(self):
+        out = format_call_diagram(self._proc("p", calls=["q"]), {})
+        assert out.splitlines()[1] == "flowchart LR"
+
+    def test_callers_in_callees_out(self):
+        out = format_call_diagram(self._proc("p", calls=["q"]), {"p": ["a"]})
+        assert '  a["a"] --> p["p"]' in out
+        assert '  p["p"] --> q["q"]' in out
+
+    def test_focus_class_without_colours(self):
+        out = format_call_diagram(self._proc("p", calls=["q"]), {})
+        assert "  class p focus" in out
+        classdef = [ln for ln in out.splitlines() if ln.strip().startswith("classDef focus")]
+        assert len(classdef) == 1
+        # no fill, stroke colour or text colour: the node keeps the contrast of the rendering theme
+        assert "fill" not in classdef[0] and "color" not in classdef[0] and "stroke:" not in classdef[0]
+        assert "style " not in out
+
+    def test_wide_fan_stays_three_columns(self):
+        callers = {"c": [f"caller_{i}" for i in range(8)]}
+        out = format_call_diagram(self._proc("c"), callers)
+        assert out.splitlines()[1] == "flowchart LR"
+        assert sum("--> c[" in ln for ln in out.splitlines()) == 8

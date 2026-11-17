@@ -167,11 +167,23 @@ Example call graph showing callers (inbound) and callees (outbound), with the cu
 **Call graph**
 
 ```mermaid
-flowchart TD
+flowchart LR
   strf_r8p["strf_r8p"] --> str_r8p["str_r8p"]
-  style str_r8p fill:#dde,stroke:#99b,stroke-width:2px
+  classDef focus stroke-width:3px,font-weight:bold
+  class str_r8p focus
 ```
 ````
+
+The call graph runs left to right, so it is at most three columns wide (callers, the procedure, callees) however many
+procedures call it: a procedure with many callers grows down the page instead of being shrunk to its width.
+
+The current procedure carries the class `focus`: a thicker border and a bold label, with no colours, so it keeps the
+text contrast of the Mermaid theme that renders it, light or dark. To colour it with your site's palette, style the
+class in your VitePress theme CSS (`!important` is needed to win over the rules Mermaid writes into each SVG):
+
+```css
+.vp-doc .mermaid .node.focus rect { fill: var(--vp-c-brand-soft) !important; stroke: var(--vp-c-brand-1) !important; }
+```
 
 ### Enabling Mermaid in VitePress
 
