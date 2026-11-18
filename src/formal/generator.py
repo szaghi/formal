@@ -1105,6 +1105,42 @@ def _classify_module(path: str) -> str:
 # Main generation entry point
 # ---------------------------------------------------------------------------
 
+MANIFEST_NAME = ".formal-manifest.json"
+
+
+def prune_stale(output_dir: Path, written: list) -> list:
+    """Remove the files a previous run wrote into *output_dir* that this run did not, then record this run's files.
+
+    The previous run's files are read from the manifest (``.formal-manifest.json``) it left; a file FORMAL never
+    wrote is never touched, and nothing outside *output_dir* is. Directories emptied by a removal are removed. Returns
+    the removed paths. Without a manifest (a first run, or an output an older FORMAL wrote) nothing is removed.
+    """
+    root = output_dir.resolve()
+    manifest = output_dir / MANIFEST_NAME
+    current = sorted({str(Path(f).resolve().relative_to(root)) for f in written})
+    previous: list = []
+    if manifest.is_file():
+        try:
+            previous = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            previous = []
+    removed = []
+    for rel in previous:
+        if not isinstance(rel, str) or rel in current:
+            continue
+        path = (root / rel).resolve()
+        if root not in path.parents or not path.is_file():
+            continue
+        path.unlink()
+        removed.append(path)
+        parent = path.parent
+        while parent != root and parent.is_dir() and not any(parent.iterdir()):
+            parent.rmdir()
+            parent = parent.parent
+    manifest.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
+    return removed
+
+
 def generate(
     project_file: Path,
     output_dir: Path,
@@ -1193,10 +1229,16 @@ def generate(
     written_files.append(index_file)
     if verbose:
         print(f"  -> {index_file}")
+
+    removed = prune_stale(output_dir, written_files)
+    if verbose:
+        for path in removed:
+            print(f"  removed stale {path}")
         print(f"\nDone! Generated {len(modules)} module pages in {output_dir}/")
 
     return {
         "modules": len(modules),
         "files": written_files,
         "sidebar": sidebar,
+        "removed": removed,
     }

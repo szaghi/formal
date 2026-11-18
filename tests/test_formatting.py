@@ -597,3 +597,60 @@ class TestFormatIndex:
         out = format_index(self.SIDEBAR, "Start with [[m]].\n\n## Layers", {"m": "/api/src/lib/m"})
         assert "# API Reference\n\nStart with [m](/api/src/lib/m).\n\n## Layers\n" in out
         assert out.index("## Layers") < out.index("## src/lib")
+
+
+# ---------------------------------------------------------------------------
+# stale pages of a previous run
+# ---------------------------------------------------------------------------
+
+class TestPruneStale:
+    @staticmethod
+    def _write(root, *rels):
+        out = []
+        for rel in rels:
+            f = root / rel
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text("x")
+            out.append(f)
+        return out
+
+    def test_first_run_removes_nothing(self, tmp_path):
+        from formal.generator import prune_stale, MANIFEST_NAME
+        mine = self._write(tmp_path, "a.md")
+        other = self._write(tmp_path, "hand.md")
+        assert prune_stale(tmp_path, mine) == []
+        assert other[0].exists()
+        assert (tmp_path / MANIFEST_NAME).is_file()
+
+    def test_removes_what_a_previous_run_wrote_only(self, tmp_path):
+        from formal.generator import prune_stale
+        first = self._write(tmp_path, "index.md", "src/bench/old.md", "src/lib/m.md")
+        prune_stale(tmp_path, first)
+        hand = self._write(tmp_path, "src/bench/hand.md", "notes.md")
+        second = [tmp_path / "index.md", tmp_path / "src/lib/m.md"]
+        removed = prune_stale(tmp_path, second)
+        assert removed == [(tmp_path / "src/bench/old.md").resolve()]
+        assert all(f.exists() for f in hand)
+        assert (tmp_path / "src/lib/m.md").exists()
+
+    def test_emptied_directories_removed(self, tmp_path):
+        from formal.generator import prune_stale
+        first = self._write(tmp_path, "index.md", "src/bench/old.md")
+        prune_stale(tmp_path, first)
+        prune_stale(tmp_path, [tmp_path / "index.md"])
+        assert not (tmp_path / "src").exists()
+
+    def test_manifest_cannot_reach_outside(self, tmp_path):
+        import json
+        from formal.generator import prune_stale, MANIFEST_NAME
+        out = tmp_path / "api"
+        out.mkdir()
+        victim = self._write(tmp_path, "keep.md")[0]
+        (out / MANIFEST_NAME).write_text(json.dumps(["../keep.md", "/etc/hostname"]))
+        assert prune_stale(out, self._write(out, "index.md")) == []
+        assert victim.exists()
+
+    def test_corrupt_manifest_ignored(self, tmp_path):
+        from formal.generator import prune_stale, MANIFEST_NAME
+        (tmp_path / MANIFEST_NAME).write_text("{not json")
+        assert prune_stale(tmp_path, self._write(tmp_path, "index.md")) == []

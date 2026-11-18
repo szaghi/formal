@@ -136,6 +136,13 @@ formal generate --mirror-sources
 
 Sidebar links and cross-reference URLs are updated automatically to match. The sidebar groups also switch from human-readable labels to real directory paths (see [Sidebar → Mirroring Source Directory Structure](./sidebar#mirroring-source-directory-structure)).
 
+## Regenerating
+
+Each run writes `.formal-manifest.json` in the output directory: the files it wrote. The next run removes the files
+of that list it did not write again (the page of a module deleted, renamed or newly excluded), and the directories
+left empty; a file FORMAL did not write (a page added by hand) is never touched, nor anything outside the output
+directory. The first run in a directory without a manifest removes nothing.
+
 ## Mermaid Diagrams
 
 Passing `--diagrams` embeds Mermaid diagram blocks in every generated page:
