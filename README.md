@@ -26,7 +26,10 @@ Projects using FORMAL for their documentation:
 
 - Parses Fortran sources using FORD's battle-tested parser
 - Generates clean Markdown that VitePress renders natively
-- One page per module with: type components, bound procedures, subroutine/function signatures, argument tables
+- One page per module with: type components, bound procedures (each with its signature and arguments, even when the
+  implementation is private), subroutine/function signatures, argument tables, and a facade's re-exports
+- A right-hand outline of every entity and method on each page; an API index introduced by the FORD project file's text
+- Mermaid dependency, inheritance and call graphs whose nodes link to their pages (`--diagrams`)
 - Auto-generated sidebar grouped by source directory structure
 - LaTeX math support in doc comments (rendered by MathJax)
 - Fortran syntax highlighting in code blocks
@@ -207,21 +210,32 @@ real(R8P),            intent(out) :: flux(:) !< Numerical flux.
 
 Each module page contains (when applicable):
 
-```
+````
 # module_name
 > Module description
 
 **Source**: `src/lib/common/module_name.F90`
+
+**Dependencies**                  (with --diagrams: the used modules, each a link)
+
+## Re-exports                     (a facade: what it takes from other modules)
+| Name | Kind | Module | Description |
 
 ## Variables
 | Name | Type | Attributes | Description |
 
 ## Derived Types
 ### type_name
-#### Components
+**Components**
 | Name | Type | Attributes | Description |
-#### Type-Bound Procedures
+**Type-Bound Procedures**
 | Name | Attributes | Description |
+#### type_name%binding            (each binding's implementation, even a private one)
+```fortran
+subroutine impl(self, arg)
+```
+**Arguments**
+| Name | Type | Intent | Attributes | Description |
 
 ## Interfaces
 ### interface_name
@@ -236,7 +250,7 @@ subroutine name(arg1, arg2)
 
 ## Functions
 (same as subroutines, plus return type)
-```
+````
 
 ## Integrating with an existing VitePress site
 

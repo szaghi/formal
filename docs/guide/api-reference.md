@@ -31,39 +31,61 @@ FORMAL calls FORD's `Project()` + `correlate()` to build this model, then walks 
 
 ## What FORMAL Generates Per Module
 
-```markdown
+````markdown
 ---
 title: module_name
+outline: [2, 4]
 ---
 # module_name
-> Module description from doc comments
+> Module description
 
 **Source**: `src/lib/common/module_name.F90`
+
+**Dependencies**                  (with --diagrams: the used modules, each a link)
+
+## Re-exports                     (a facade: what it takes from other modules)
+| Name | Kind | Module | Description |
 
 ## Variables
 | Name | Type | Attributes | Description |
 
 ## Derived Types
 ### type_name
-> Type description
-#### Components
+**Components**
 | Name | Type | Attributes | Description |
-#### Type-Bound Procedures
+**Type-Bound Procedures**
 | Name | Attributes | Description |
+#### type_name%binding            (each binding's implementation, even a private one)
+```fortran
+subroutine impl(self, arg)
+```
+**Arguments**
+| Name | Type | Intent | Attributes | Description |
 
 ## Interfaces
+### interface_name
 
 ## Subroutines
-### sub_name
-> Subroutine description
+### subroutine_name
 ```fortran
-subroutine sub_name(arg1, arg2)
-`` `
+subroutine name(arg1, arg2)
+```
 **Arguments**
 | Name | Type | Intent | Attributes | Description |
 
 ## Functions
-```
+(same as subroutines, plus return type)
+````
+
+The front matter's `outline: [2, 4]` makes VitePress's right-hand outline list the sections, the entities and the
+types' bound procedures. A bound procedure is documented under its type, as `type_name%binding`, with its
+implementation's signature, arguments and doc: also when the implementation is private, which `display: public`
+otherwise drops from the module's own sections. A binding without a doc comment takes its implementation's in the
+table; a generic binding lists its specific bindings, linked.
+
+A module that makes public what it takes from other modules (a facade: `use x, only: ...` plus `public :: ...`) lists
+those names under Re-exports, in the order of its public list, each linked to its definition. A name from a module
+outside the project is traced to the `use ..., only:` it comes from.
 
 ## The FORD Project File
 

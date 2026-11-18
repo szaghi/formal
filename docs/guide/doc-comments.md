@@ -35,12 +35,12 @@ integer,        intent(in)    :: n    !< Iteration count.
 2. Module/type/procedure docs go on lines **immediately after** the statement
 3. Variable/argument docs go on the **same line** as the declaration
 4. Multi-line docs: continue with `!<` on subsequent lines
-5. In table cells, only the **first line** is shown (full text in block descriptions)
+5. In table cells, only the **first paragraph** is shown, its wrapped lines joined (full text in block descriptions)
 6. Markdown and LaTeX are fully supported in doc comments
 
 ## Tips for Good Doc Comments
 
-- **First line matters**: for variables and type components, keep the first line short and descriptive -- it becomes the table cell content
+- **First paragraph matters**: for variables, type components and procedures, keep the first paragraph (up to a blank line or a list) short and descriptive -- it becomes the table cell content
 - **Describe "what", not "how"**: `!< Conservative variables vector` not `!< A real array`
 - **Units and ranges**: `!< CFL number (0 < cfl <= 1)` or `!< Temperature [K]`
 - **Cross-references**: use module/type names in backticks for readability
