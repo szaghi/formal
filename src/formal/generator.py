@@ -43,14 +43,19 @@ _TYPE_PAREN_RE = re.compile(r"\b(type|class)\((\w+)\)", re.IGNORECASE)
 _KIND_EQ_RE = re.compile(r"\bkind=(\w+)", re.IGNORECASE)
 
 
+_SLUG_SPECIAL_RE = re.compile(r"[\s~`!@#$%^&*()\-_+=\[\]{}|\\;:\"'\u201c\u201d\u2018\u2019<>,.?/]+")
+
+
 def slugify(name: str) -> str:
     """Convert an entity name to a VitePress-compatible anchor slug.
 
     VitePress (via @mdit-vue/shared) lowercases heading text and replaces
-    runs of whitespace, underscores, and hyphens with a single hyphen, so
-    ``strf_r8p`` becomes ``strf-r8p`` in the rendered HTML anchor.
+    runs of whitespace and punctuation (underscores, hyphens, ``%``, ``.``,
+    parentheses, ...) with a single hyphen, so ``strf_r8p`` becomes
+    ``strf-r8p`` and ``stepper%initialize`` becomes ``stepper-initialize``
+    in the rendered HTML anchor.
     """
-    return re.sub(r"[\s_-]+", "-", name.lower()).strip("-")
+    return _SLUG_SPECIAL_RE.sub("-", name.lower()).strip("-")
 
 
 def _module_rel_url(module, src_root: Optional[str] = None, mirror_sources: bool = False) -> str:
@@ -103,6 +108,10 @@ def build_entity_index(
             url = f"{mod_url}#{slugify(dtype.name)}"
             index[dtype.name.lower()] = url
             index[f"{mod_key}:{dtype.name.lower()}"] = url
+            for bp in getattr(dtype, "boundprocs", None) or []:
+                if _bound_implementation(bp, dtype) is not None:
+                    key = f"{dtype.name}%{bp.name}"
+                    index[key.lower()] = f"{mod_url}#{slugify(key)}"
 
         for proc in list(module.subroutines) + list(module.functions):
             url = f"{mod_url}#{slugify(proc.name)}"
@@ -211,17 +220,34 @@ def format_doc(doc_list: list, link_index: Optional[dict] = None) -> str:
     return text
 
 
+_BLOCK_START_RE = re.compile(r"([-+*]|\d+[.)])\s|```|\|")
+
+
 def inline_doc(doc_list: list, link_index: Optional[dict] = None) -> str:
-    """Format doc_list as a single-line table cell (first line only for brevity)."""
+    """Format doc_list as a single-line table cell: its first paragraph.
+
+    A doc comment wrapped over several lines is joined into one line, up to
+    the first blank line, list item, table row or code fence, so a sentence
+    is never cut at the source's line break.
+    """
     if not doc_list:
         return ""
+    para: list[str] = []
     for line in doc_list:
         stripped = line.strip()
-        if stripped:
-            if link_index is not None:
-                stripped = resolve_links(stripped, link_index)
-            return escape_pipe(strip_html(stripped))
-    return ""
+        if not stripped:
+            if para:
+                break
+            continue
+        if para and _BLOCK_START_RE.match(stripped):
+            break
+        para.append(stripped)
+    if not para:
+        return ""
+    text = " ".join(para)
+    if link_index is not None:
+        text = resolve_links(text, link_index)
+    return escape_pipe(strip_html(text))
 
 
 def format_type_str(var, link_index: Optional[dict] = None) -> str:
@@ -329,11 +355,17 @@ def format_procedure(
     link_index: Optional[dict] = None,
     called_by_index: Optional[dict] = None,
     show_diagrams: bool = False,
+    heading: Optional[str] = None,
+    level: int = 3,
 ) -> str:
-    """Format a subroutine or function section."""
+    """Format a subroutine or function section.
+
+    *heading* replaces the procedure's name as the section title (a bound
+    procedure is titled ``type%binding``), at Markdown heading *level*.
+    """
     lines = []
 
-    lines.append(f"### {proc.name}\n")
+    lines.append(f"{'#' * level} {heading or proc.name}\n")
 
     doc = format_doc(proc.doc_list, link_index)
     if doc:
@@ -382,8 +414,59 @@ def format_procedure(
     return "\n".join(lines)
 
 
-def format_bound_proc_table(boundprocs: list, link_index: Optional[dict] = None) -> str:
-    """Generate a Markdown table for type-bound procedures."""
+def _is_procedure(obj) -> bool:
+    """True for a FORD procedure object (a subroutine or function with arguments)."""
+    return hasattr(obj, "args") and hasattr(obj, "proctype") and hasattr(obj, "name")
+
+
+def _bound_implementation(bp, dtype=None):
+    """Return the procedure a specific (non-generic) binding resolves to, or None.
+
+    None for a generic binding, an unresolved binding (FORD keeps a string) and
+    a binding whose implementation is a public procedure of the type's own
+    module, which the module page already renders in its own section.
+    """
+    if getattr(bp, "generic", False):
+        return None
+    bindings = list(getattr(bp, "bindings", None) or [])
+    if len(bindings) != 1 or not _is_procedure(bindings[0]):
+        return None
+    impl = bindings[0]
+    module = getattr(dtype, "parent", None)
+    if module is not None:
+        public = list(getattr(module, "subroutines", None) or []) + list(getattr(module, "functions", None) or [])
+        if any(p is impl for p in public):
+            return None
+    return impl
+
+
+def _binding_target(bp, dtype, link_index: Optional[dict]) -> Optional[str]:
+    """The URL a binding's name links to: its section under the type, or its implementation's own section."""
+    if _bound_implementation(bp, dtype) is not None:
+        return f"#{slugify(f'{dtype.name}%{bp.name}')}"
+    bindings = list(getattr(bp, "bindings", None) or [])
+    if link_index and len(bindings) == 1 and _is_procedure(bindings[0]):
+        return _proc_url(bindings[0], link_index)
+    return None
+
+
+def _proc_url(proc, link_index: dict) -> Optional[str]:
+    """A procedure's URL, by its module-qualified key first: a bare name may belong to several modules."""
+    module = getattr(proc, "parent", None)
+    if module is not None and hasattr(module, "name"):
+        url = link_index.get(f"{module.name.lower()}:{proc.name.lower()}")
+        if url:
+            return url
+    return link_index.get(proc.name.lower())
+
+
+def format_bound_proc_table(boundprocs: list, link_index: Optional[dict] = None, dtype=None) -> str:
+    """Generate a Markdown table for type-bound procedures.
+
+    With *dtype* (the type the bindings belong to), each name links to the
+    binding's section, a binding without a doc comment takes its
+    implementation's first doc line, and a generic binding lists its specifics.
+    """
     if not boundprocs:
         return ""
 
@@ -393,9 +476,21 @@ def format_bound_proc_table(boundprocs: list, link_index: Optional[dict] = None)
     ]
 
     for bp in boundprocs:
-        name = f"`{bp.name}`"
+        target = _binding_target(bp, dtype, link_index) if dtype is not None else None
+        name = f"[`{bp.name}`]({target})" if target else f"`{bp.name}`"
         attribs = escape_pipe(", ".join(str(a) for a in bp.attribs)) if bp.attribs else ""
         doc = inline_doc(bp.doc_list, link_index) if hasattr(bp, "doc_list") else ""
+        bindings = list(getattr(bp, "bindings", None) or [])
+        if not doc and len(bindings) == 1 and _is_procedure(bindings[0]):
+            doc = inline_doc(getattr(bindings[0], "doc_list", None) or [], link_index)
+        if getattr(bp, "generic", False) and bindings and dtype is not None:
+            specifics = []
+            for b in bindings:
+                bname = getattr(b, "name", str(b))
+                btarget = _binding_target(b, dtype, link_index) if hasattr(b, "bindings") else None
+                specifics.append(f"[`{bname}`]({btarget})" if btarget else f"`{bname}`")
+            generic = "Generic: " + ", ".join(specifics)
+            doc = f"{doc} {generic}" if doc else generic
         lines.append(f"| {name} | {attribs} | {doc} |")
 
     return "\n".join(lines)
@@ -406,8 +501,15 @@ def format_type(
     link_index: Optional[dict] = None,
     type_children_index: Optional[dict] = None,
     show_diagrams: bool = False,
+    called_by_index: Optional[dict] = None,
 ) -> str:
-    """Format a derived type section."""
+    """Format a derived type section.
+
+    The components and the binding table are labelled paragraphs; each specific
+    binding's implementation follows as a ``#### type%binding`` section
+    (signature, arguments, doc), also when the implementation is private and
+    so absent from the module's own procedure sections.
+    """
     lines = []
 
     lines.append(f"### {dtype.name}\n")
@@ -439,14 +541,25 @@ def format_type(
         lines.append(f"**Attributes**: {', '.join(str(a) for a in dtype.attribs)}\n")
 
     if dtype.variables:
-        lines.append("#### Components\n")
+        lines.append("**Components**\n")
         lines.append(format_variable_table(dtype.variables, link_index=link_index))
         lines.append("")
 
     if dtype.boundprocs:
-        lines.append("#### Type-Bound Procedures\n")
-        lines.append(format_bound_proc_table(dtype.boundprocs, link_index))
+        lines.append("**Type-Bound Procedures**\n")
+        lines.append(format_bound_proc_table(dtype.boundprocs, link_index, dtype=dtype))
         lines.append("")
+        for bp in dtype.boundprocs:
+            impl = _bound_implementation(bp, dtype)
+            if impl is None:
+                continue
+            lines.append(format_procedure(
+                impl, link_index,
+                called_by_index=called_by_index,
+                show_diagrams=show_diagrams,
+                heading=f"{dtype.name}%{bp.name}",
+                level=4,
+            ))
 
     return "\n".join(lines)
 
@@ -516,6 +629,8 @@ def format_module(
 
     lines.append("---")
     lines.append(f"title: {module.name}")
+    # the right-hand outline: sections, entities and the types' bound procedures
+    lines.append("outline: [2, 4]")
     lines.append("---")
     lines.append("")
 
@@ -562,6 +677,7 @@ def format_module(
                 dtype, link_index,
                 type_children_index=type_children_index,
                 show_diagrams=show_diagrams,
+                called_by_index=called_by_index,
             ))
 
     if module.interfaces:

@@ -30,6 +30,7 @@ class MockProcedure:
     doc_list: list = field(default_factory=list)
     attribs: list = field(default_factory=list)
     retvar: Optional[object] = None
+    parent: Optional[object] = None
 
 
 @dataclass
@@ -38,6 +39,8 @@ class MockBoundProc:
     name: str = "bp"
     attribs: list = field(default_factory=list)
     doc_list: list = field(default_factory=list)
+    bindings: list = field(default_factory=list)
+    generic: bool = False
 
 
 @dataclass
@@ -49,6 +52,7 @@ class MockType:
     attribs: list = field(default_factory=list)
     variables: list = field(default_factory=list)
     boundprocs: list = field(default_factory=list)
+    parent: Optional[object] = None
 
 
 @dataclass

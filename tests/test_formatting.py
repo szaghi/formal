@@ -130,6 +130,18 @@ class TestInlineDoc:
     def test_all_whitespace(self):
         assert inline_doc(["", "  ", ""]) == ""
 
+    def test_joins_wrapped_first_paragraph(self):
+        assert inline_doc(["The state of the stage; null when", " the state is q.", "", "Second."]) == (
+            "The state of the stage; null when the state is q.")
+
+    def test_stops_at_list(self):
+        assert inline_doc(["A field, in one of two layouts:", "+ `V_FIRST`", "+ `V_LAST`"]) == (
+            "A field, in one of two layouts:")
+
+    def test_stops_at_table_and_fence(self):
+        assert inline_doc(["Kernels:", "| a | b |"]) == "Kernels:"
+        assert inline_doc(["Example:", "```fortran", "x = 1", "```"]) == "Example:"
+
 
 # ---------------------------------------------------------------------------
 # format_type_str

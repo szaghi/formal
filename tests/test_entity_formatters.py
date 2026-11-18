@@ -161,7 +161,7 @@ class TestFormatType:
         result = format_type(dtype)
         assert "### config_type" in result
         assert "A configuration." in result
-        assert "#### Components" in result
+        assert "**Components**" in result
         assert "`n`" in result
 
     def test_type_with_extends(self):
@@ -188,7 +188,7 @@ class TestFormatType:
         bp = MockBoundProc(name="init", doc_list=["Set up."])
         dtype = MockType(name="obj", boundprocs=[bp])
         result = format_type(dtype)
-        assert "#### Type-Bound Procedures" in result
+        assert "**Type-Bound Procedures**" in result
         assert "`init`" in result
 
     def test_empty_type(self):
@@ -283,7 +283,7 @@ class TestFormatModule:
             parent=parent,
         )
         result = format_module(module)
-        assert "---\ntitle: physics_module\n---" in result
+        assert "---\ntitle: physics_module\noutline: [2, 4]\n---" in result
         assert "# physics_module" in result
         assert "> A physics module." in result
         assert "**Source**: `src/lib/common/physics.F90`" in result
@@ -360,3 +360,75 @@ class TestFormatModuleTOC:
         toc_pos = result.index("## Contents")
         types_pos = result.index("## Derived Types")
         assert toc_pos < types_pos
+
+
+# ---------------------------------------------------------------------------
+# bound procedures rendered in full
+# ---------------------------------------------------------------------------
+
+class TestBoundProcedures:
+    def _stepper(self, impl_public=False):
+        self_arg = MockVariable(name="self", full_type="class(stepper)", intent="inout", doc_list=["Stepper."])
+        dt = MockVariable(name="dt", full_type="real(R_P)", intent="in", doc_list=["Time step."])
+        impl = MockProcedure(name="begin_step", args=[self_arg, dt], doc_list=["Open a step.", "", "More."])
+        bp = MockBoundProc(name="begin_step", attribs=["pass(self)"], bindings=[impl])
+        module = MockModule(name="m", subroutines=[impl] if impl_public else [])
+        dtype = MockType(name="stepper", boundprocs=[bp], parent=module)
+        module.types = [dtype]
+        return dtype, impl
+
+    def test_private_implementation_rendered_under_type(self):
+        dtype, _ = self._stepper()
+        result = format_type(dtype)
+        assert "#### stepper%begin_step" in result
+        assert "subroutine begin_step(self, dt)" in result
+        assert "| `dt` | real(R_P) | in |  | Time step. |" in result
+
+    def test_table_links_and_takes_implementation_doc(self):
+        dtype, _ = self._stepper()
+        result = format_type(dtype)
+        assert "| [`begin_step`](#stepper-begin-step) | pass(self) | Open a step. |" in result
+
+    def test_public_implementation_linked_not_duplicated(self):
+        dtype, _ = self._stepper(impl_public=True)
+        index = {"begin_step": "/api/m#begin-step"}
+        result = format_type(dtype, link_index=index)
+        assert "#### stepper%begin_step" not in result
+        assert "[`begin_step`](/api/m#begin-step)" in result
+
+    def test_generic_lists_specifics(self):
+        dtype, impl = self._stepper()
+        specific = dtype.boundprocs[0]
+        generic = MockBoundProc(name="assignment(=)", bindings=[specific], generic=True)
+        dtype.boundprocs.append(generic)
+        result = format_type(dtype)
+        assert "Generic: [`begin_step`](#stepper-begin-step)" in result
+        assert result.count("#### stepper%") == 1
+
+    def test_unresolved_binding_listed_only(self):
+        bp = MockBoundProc(name="cross", bindings=["cross_impl"])
+        dtype = MockType(name="vec", boundprocs=[bp])
+        result = format_type(dtype)
+        assert "| `cross` |" in result
+        assert "####" not in result
+
+    def test_index_has_binding_anchor(self):
+        from formal.generator import build_entity_index
+        dtype, _ = self._stepper()
+        module = dtype.parent
+        project = type("P", (), {"modules": [module]})()
+        index = build_entity_index(project)
+        assert index["stepper%begin_step"] == "/api/m#stepper-begin-step"
+
+    def test_slugify_matches_vitepress(self):
+        from formal.generator import slugify
+        assert slugify("stepper%begin_step") == "stepper-begin-step"
+        assert slugify("operator(.eq.)") == "operator-eq"
+        assert slugify("assignment(=)") == "assignment"
+
+    def test_public_implementation_linked_by_its_module(self):
+        dtype, impl = self._stepper(impl_public=True)
+        impl.parent = dtype.parent
+        index = {"begin_step": "/api/other#begin-step", "m:begin_step": "/api/m#begin-step"}
+        result = format_type(dtype, link_index=index)
+        assert "[`begin_step`](/api/m#begin-step)" in result
