@@ -185,6 +185,36 @@ class in your VitePress theme CSS (`!important` is needed to win over the rules 
 .vp-doc .mermaid .node.focus rect { fill: var(--vp-c-brand-soft) !important; stroke: var(--vp-c-brand-1) !important; }
 ```
 
+### Diagram nodes are links
+
+Every node that has a page or a section is a link to it: a used module to its page, a caller or callee to its section,
+a parent or child type to its section. FORMAL writes one Mermaid `click` line per node:
+
+```
+  click penf_b_size href "penf_b_size.html" "penf_b_size"
+  click str_r8p href "#str-r8p" "str_r8p"
+```
+
+The URLs are relative to the page the diagram is on. VitePress rewrites the links of the Markdown with the site's
+`base`, but not the links inside an SVG drawn in the browser, so an absolute `/api/...` path would miss the base of a
+site served from a subdirectory (`/<repo>/` on GitHub Pages). A node without a page (an external module, an unresolved
+call) stays plain text. The links work with Mermaid's default `securityLevel: 'strict'`.
+
+::: warning VitePress 1.x: turn off link prefetching
+VitePress 1.6 prefetches the page of every link in view, and reads `link.pathname`, which an SVG link does not have: a
+production build logs `TypeError: Cannot read properties of undefined (reading 'replace')` when a diagram with
+cross-page links scrolls into view. Navigation is unaffected, only some prefetches are skipped. VitePress 2 fixes it
+([vuejs/vitepress#5442](https://github.com/vuejs/vitepress/pull/5442)); on 1.x, turn prefetching off:
+
+```typescript
+// .vitepress/config.mts
+export default withMermaid({
+  router: { prefetchLinks: false },
+  // ...
+})
+```
+:::
+
 ### Enabling Mermaid in VitePress
 
 Diagrams require `vitepress-plugin-mermaid`. For **new projects**, pass `--mermaid` to `formal init` and it is wired up automatically:

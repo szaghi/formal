@@ -529,3 +529,51 @@ class TestReexports:
         mod.public_list = ["f"]
         mod.pub_procs = {"f": p}
         assert format_reexports(mod) == ""
+
+
+# ---------------------------------------------------------------------------
+# diagram nodes as links
+# ---------------------------------------------------------------------------
+
+class TestDiagramLinks:
+    def test_relative_href(self):
+        from formal.generator import relative_href
+        page = "/api/src/lib/selah_stepper"
+        assert relative_href("/api/src/lib/selah_box", page) == "selah_box.html"
+        assert relative_href("/api/src/lib/selah_box#box", page) == "selah_box.html#box"
+        assert relative_href("/api/src/lib/selah_stepper#stepper", page) == "#stepper"
+        assert relative_href("/api/other", page) == "../../other.html"
+        assert relative_href("/api/a", "/api/b") == "a.html"
+
+    def test_dependency_nodes_link(self):
+        from types import SimpleNamespace
+        from formal.generator import format_dependency_diagram
+        mod = SimpleNamespace(name="m", uses=[SimpleNamespace(name="dep"), SimpleNamespace(name="ext")])
+        out = format_dependency_diagram(mod, link_index={"m": "/api/m", "dep": "/api/dep"}, page_url="/api/m")
+        assert '  click dep href "dep.html" "dep"' in out
+        assert "click ext" not in out
+        assert "click m " not in out
+
+    def test_no_links_without_page(self):
+        from types import SimpleNamespace
+        from formal.generator import format_dependency_diagram
+        mod = SimpleNamespace(name="m", uses=[SimpleNamespace(name="dep")])
+        assert "click" not in format_dependency_diagram(mod, link_index={"dep": "/api/dep"})
+
+    def test_call_graph_nodes_link_not_focus(self):
+        from types import SimpleNamespace
+        p = SimpleNamespace(name="p", calls=[SimpleNamespace(name="q", parent=SimpleNamespace(name="other"))])
+        index = {"a": "/api/m#a", "q": "/api/x#q", "other:q": "/api/other#q", "p": "/api/m#p"}
+        out = format_call_diagram(p, {"p": ["a"]}, link_index=index, page_url="/api/m")
+        assert '  click a href "#a" "a"' in out
+        assert '  click q href "other.html#q" "q"' in out
+        assert "click p " not in out
+
+    def test_inheritance_nodes_link(self):
+        from formal.generator import format_inheritance_diagram
+        parent = MockType(name="base")
+        child = MockType(name="mid", extends=parent)
+        out = format_inheritance_diagram(child, {"mid": ["leaf"]},
+                                         link_index={"base": "/api/b#base", "leaf": "/api/m#leaf"}, page_url="/api/m")
+        assert '  click base href "b.html#base" "base"' in out
+        assert '  click leaf href "#leaf" "leaf"' in out

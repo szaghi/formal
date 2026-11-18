@@ -157,6 +157,7 @@ def init_vitepress_site(
             print("      replace: export default defineConfig({")
             print("      with:    export default withMermaid({")
             print("      add:     mermaid: {},  inside the config object")
+            print("      add:     router: { prefetchLinks: false },  (VitePress 1.x: diagram links)")
 
     # index.md
     index_file = docs_dir / "index.md"
@@ -243,6 +244,8 @@ def _generate_config(
     lines.append("  },")
     if enable_mermaid:
         lines.append("  mermaid: {},")
+        # VitePress 1.x prefetch reads link.pathname, absent on the SVG links of the diagrams (fixed in VitePress 2)
+        lines.append("  router: { prefetchLinks: false },")
         lines.append("  vite: {                  ")
         lines.append("    optimizeDeps: {        ")
         lines.append("      include: ['mermaid'],")

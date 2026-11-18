@@ -4,6 +4,7 @@ Parses Fortran sources via FORD and generates VitePress-compatible Markdown file
 """
 
 import json
+import posixpath
 import re
 from pathlib import Path
 from typing import Any, Optional
@@ -358,11 +359,14 @@ def format_procedure(
     show_diagrams: bool = False,
     heading: Optional[str] = None,
     level: int = 3,
+    page_url: Optional[str] = None,
 ) -> str:
     """Format a subroutine or function section.
 
     *heading* replaces the procedure's name as the section title (a bound
     procedure is titled ``type%binding``), at Markdown heading *level*.
+    *page_url* is the URL of the page the section is on: with it and
+    *link_index*, the call graph's nodes link to their sections.
     """
     lines = []
 
@@ -406,7 +410,7 @@ def format_procedure(
         lines.append("")
 
     if show_diagrams and called_by_index is not None:
-        diagram = format_call_diagram(proc, called_by_index)
+        diagram = format_call_diagram(proc, called_by_index, link_index=link_index, page_url=page_url)
         if diagram:
             lines.append("**Call graph**\n")
             lines.append(diagram)
@@ -503,6 +507,7 @@ def format_type(
     type_children_index: Optional[dict] = None,
     show_diagrams: bool = False,
     called_by_index: Optional[dict] = None,
+    page_url: Optional[str] = None,
 ) -> str:
     """Format a derived type section.
 
@@ -521,7 +526,7 @@ def format_type(
         lines.append("")
 
     if show_diagrams and type_children_index is not None:
-        diagram = format_inheritance_diagram(dtype, type_children_index)
+        diagram = format_inheritance_diagram(dtype, type_children_index, link_index=link_index, page_url=page_url)
         if diagram:
             lines.append("**Inheritance**\n")
             lines.append(diagram)
@@ -560,6 +565,7 @@ def format_type(
                 show_diagrams=show_diagrams,
                 heading=f"{dtype.name}%{bp.name}",
                 level=4,
+                page_url=page_url,
             ))
 
     return "\n".join(lines)
@@ -753,8 +759,10 @@ def format_module(
     if src_path:
         lines.append(f"**Source**: `{src_path}`\n")
 
+    page_url = link_index.get(module.name.lower()) if link_index else None
+
     if show_diagrams:
-        dep_diagram = format_dependency_diagram(module)
+        dep_diagram = format_dependency_diagram(module, link_index=link_index, page_url=page_url)
         if dep_diagram:
             lines.append("**Dependencies**\n")
             lines.append(dep_diagram)
@@ -793,6 +801,7 @@ def format_module(
                 type_children_index=type_children_index,
                 show_diagrams=show_diagrams,
                 called_by_index=called_by_index,
+                page_url=page_url,
             ))
 
     if module.interfaces:
@@ -808,6 +817,7 @@ def format_module(
                 sub, link_index,
                 called_by_index=called_by_index,
                 show_diagrams=show_diagrams,
+                page_url=page_url,
             ))
 
     funcs = list(module.functions) if module.functions else []
@@ -818,6 +828,7 @@ def format_module(
                 func, link_index,
                 called_by_index=called_by_index,
                 show_diagrams=show_diagrams,
+                page_url=page_url,
             ))
 
     return "\n".join(lines)
@@ -830,6 +841,33 @@ def format_module(
 def _mid(name: str) -> str:
     """Return a Mermaid node declaration with a quoted label: id["label"]."""
     return f'{name}["{name}"]'
+
+
+def relative_href(url: str, page_url: str) -> str:
+    """The href of *url* (an absolute site path, e.g. ``/api/src/lib/m#x``) from the page at *page_url*.
+
+    A link inside a Mermaid SVG is not rewritten by VitePress, so an absolute ``/api/...`` path would miss the
+    site's base (``/<repo>/`` on GitHub Pages). A page-relative href works under any base: ``#x`` on the same page,
+    else the relative path with ``.html`` (the file VitePress writes, served with or without clean URLs).
+    """
+    path, _, frag = url.partition("#")
+    page = page_url.partition("#")[0]
+    anchor = f"#{frag}" if frag else ""
+    if path == page:
+        return anchor or "#"
+    rel = posixpath.relpath(path, posixpath.dirname(page) or "/")
+    return f"{rel}.html{anchor}"
+
+
+def _click_lines(targets: dict, page_url: Optional[str]) -> list:
+    """Mermaid ``click`` lines making nodes links: *targets* maps a node id to its absolute URL (or None)."""
+    if not page_url:
+        return []
+    lines = []
+    for node, url in targets.items():
+        if url:
+            lines.append(f'  click {node} href "{relative_href(url, page_url)}" "{node}"')
+    return lines
 
 
 def build_called_by_index(project) -> dict[str, list[str]]:
@@ -863,9 +901,11 @@ def build_type_children_index(project) -> dict[str, list[str]]:
     return index
 
 
-def format_dependency_diagram(module) -> str:
+def format_dependency_diagram(module, link_index: Optional[dict] = None, page_url: Optional[str] = None) -> str:
     """Return a Mermaid graph block showing which modules this module uses.
 
+    With *link_index* and *page_url* (the page the diagram is on), each used
+    module that has a page is a link to it.
     Returns an empty string if the module has no USE dependencies.
     """
     uses = getattr(module, "uses", None)
@@ -877,12 +917,18 @@ def format_dependency_diagram(module) -> str:
     lines = ["```mermaid", "graph LR"]
     for dep in deps:
         lines.append(f"  {_mid(module.name)} --> {_mid(dep)}")
+    if link_index:
+        lines.extend(_click_lines({dep: link_index.get(dep.lower()) for dep in deps}, page_url))
     lines.append("```")
     return "\n".join(lines)
 
 
-def format_inheritance_diagram(dtype, type_children_index: dict) -> str:
+def format_inheritance_diagram(
+    dtype, type_children_index: dict, link_index: Optional[dict] = None, page_url: Optional[str] = None
+) -> str:
     """Return a Mermaid class diagram showing direct inheritance around a type.
+
+    With *link_index* and *page_url*, the parent and child types are links.
 
     Shows the parent type (if any) and all known child types.
     Returns an empty string when the type has neither.
@@ -896,11 +942,16 @@ def format_inheritance_diagram(dtype, type_children_index: dict) -> str:
         lines.append(f"  {dtype.extends.name} <|-- {dtype.name}")
     for child in sorted(children):
         lines.append(f"  {dtype.name} <|-- {child}")
+    if link_index:
+        others = ([dtype.extends.name] if has_parent else []) + sorted(children)
+        lines.extend(_click_lines({n: link_index.get(n.lower()) for n in others}, page_url))
     lines.append("```")
     return "\n".join(lines)
 
 
-def format_call_diagram(proc, called_by_index: dict) -> str:
+def format_call_diagram(
+    proc, called_by_index: dict, link_index: Optional[dict] = None, page_url: Optional[str] = None
+) -> str:
     """Return a Mermaid flowchart showing calls to and from a procedure.
 
     Callers of *proc* flow into the central node; callees flow out.
@@ -915,6 +966,9 @@ def format_call_diagram(proc, called_by_index: dict) -> str:
     thicker border and a bold label, no colours, so the node keeps the text
     contrast of whatever Mermaid theme renders it. A site colours it in its own
     stylesheet, e.g. ``.mermaid .node.focus rect { fill: ... !important }``.
+
+    With *link_index* and *page_url* (the page the diagram is on), every other
+    node that has a section is a link to it.
     """
     calls = [c for c in (getattr(proc, "calls", None) or []) if hasattr(c, "name")]
     callers = called_by_index.get(proc.name.lower(), [])
@@ -927,6 +981,10 @@ def format_call_diagram(proc, called_by_index: dict) -> str:
         lines.append(f"  {_mid(proc.name)} --> {_mid(called.name)}")
     lines.append("  classDef focus stroke-width:3px,font-weight:bold")
     lines.append(f"  class {proc.name} focus")
+    if link_index:
+        targets = {c: link_index.get(c.lower()) for c in sorted(callers) if c != proc.name}
+        targets.update({c.name: _proc_url(c, link_index) for c in calls if c.name != proc.name})
+        lines.extend(_click_lines(targets, page_url))
     lines.append("```")
     return "\n".join(lines)
 

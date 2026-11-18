@@ -183,3 +183,10 @@ class TestGenerateConfig:
     def test_no_description(self):
         config = _generate_config("Proj", "", enable_math=False, enable_fortran=False)
         assert "description:" not in config
+
+
+def test_mermaid_config_turns_off_link_prefetch():
+    """The diagrams' SVG links crash VitePress 1.x's prefetch: a --mermaid site turns it off."""
+    from formal.scaffold import _generate_config
+    assert "router: { prefetchLinks: false }," in _generate_config("P", "", False, False, True)
+    assert "prefetchLinks" not in _generate_config("P", "", False, False, False)
