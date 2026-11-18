@@ -124,7 +124,8 @@ def build_entity_index(
             index[f"{mod_key}:{iface.name.lower()}"] = url
 
         for var in module.variables:
-            index[var.name.lower()] = mod_url
+            # variables are rows of the module's Variables table, which has no per-row anchor
+            index[var.name.lower()] = f"{mod_url}#variables"
 
     return index
 
@@ -600,6 +601,114 @@ def format_interface(iface, link_index: Optional[dict] = None) -> str:
     return "\n".join(lines)
 
 
+_ENTITY_KINDS = {
+    "FortranType": "type",
+    "FortranFunction": "function",
+    "FortranSubroutine": "subroutine",
+    "FortranInterface": "interface",
+    "GenericSource": "interface",
+}
+
+
+def _entity_kind(obj) -> str:
+    """A short kind label for a FORD entity: type, function, subroutine, interface, parameter, variable."""
+    name = type(obj).__name__
+    if name in _ENTITY_KINDS:
+        return _ENTITY_KINDS[name]
+    if hasattr(obj, "vartype"):
+        return "parameter" if getattr(obj, "parameter", False) else "variable"
+    if hasattr(obj, "boundprocs"):
+        return "type"
+    if hasattr(obj, "proctype"):
+        return str(obj.proctype).lower()
+    return ""
+
+
+_USE_ONLY_RE = re.compile(
+    r"^\s*use\b(?:\s*,\s*(?:non_)?intrinsic)?\s*(?:::)?\s*(\w+)\s*,\s*only\s*:\s*(.*)$", re.IGNORECASE
+)
+
+
+def _use_only_names(module) -> dict:
+    """Map each name a module imports through ``use m, only: ...`` (lowercase) to (spelling, m), from its raw source."""
+    raw = getattr(getattr(module, "parent", None), "raw_src", None) or ""
+    text = re.sub(r"&\s*\n\s*&?", " ", raw)  # join continuation lines
+    names: dict = {}
+    for line in text.splitlines():
+        line = line.split("!", 1)[0]
+        m = _USE_ONLY_RE.match(line)
+        if not m:
+            continue
+        used, only = m.group(1), m.group(2)
+        for item in only.split(","):
+            local = item.split("=>", 1)[0].strip()
+            if re.fullmatch(r"\w+", local):
+                names.setdefault(local.lower(), (local, used))
+    return names
+
+
+def _unresolved_origin(module, key: str, link_index: Optional[dict]) -> tuple:
+    """The spelling and the module cell of a public name FORD could not resolve (an external module's entity).
+
+    The module is the one the name is imported from by a ``use ..., only:`` of this module, else a used project
+    module that makes the name public (a re-export chain); else ``(external)``.
+    """
+    spelling, owner = _use_only_names(module).get(key, (key, None))
+    if owner is None:
+        for used in getattr(module, "uses", None) or []:
+            if key in [str(n).lower() for n in (getattr(used, "public_list", None) or [])]:
+                owner = used.name
+                spelling = _use_only_names(used).get(key, (spelling, None))[0]
+                break
+    if owner is None:
+        return spelling, "(external)"
+    url = link_index.get(owner.lower()) if link_index else None
+    return spelling, f"[{owner}]({url})" if url else owner
+
+
+def format_reexports(module, link_index: Optional[dict] = None) -> str:
+    """A table of the public entities a module takes from other modules (a facade's ``use``/``public``).
+
+    One row per name of the module's public list that is not defined in the module itself, in the order of the
+    public list: the name (linked to its definition), its kind, the module defining it and its first doc paragraph.
+    A name FORD cannot resolve (an external module's) is listed as external. Empty when nothing is re-exported.
+    """
+    public = [str(n).lower() for n in (getattr(module, "public_list", None) or [])]
+    if not public:
+        return ""
+    found: dict = {}
+    for attr in ("pub_types", "pub_procs", "pub_absints", "pub_vars"):
+        for key, obj in (getattr(module, attr, None) or {}).items():
+            found.setdefault(str(key).lower(), obj)
+    rows = []
+    seen = set()
+    for key in public:
+        if key in seen:
+            continue
+        seen.add(key)
+        obj = found.get(key)
+        if obj is None:
+            origin = _unresolved_origin(module, key, link_index)
+            rows.append(f"| `{origin[0]}` |  | {origin[1]} |  |")
+            continue
+        owner = getattr(obj, "parent", None)
+        owner_name = getattr(owner, "name", "")
+        if owner is module or owner_name.lower() == module.name.lower():
+            continue
+        name = getattr(obj, "name", key)
+        url = None
+        if link_index:
+            url = link_index.get(f"{owner_name.lower()}:{name.lower()}") or link_index.get(name.lower())
+        cell = f"[`{name}`]({url})" if url else f"`{name}`"
+        owner_url = link_index.get(owner_name.lower()) if link_index and owner_name else None
+        owner_cell = f"[{owner_name}]({owner_url})" if owner_url else owner_name
+        doc = inline_doc(getattr(obj, "doc_list", None) or [], link_index)
+        rows.append(f"| {cell} | {_entity_kind(obj)} | {owner_cell} | {doc} |")
+    if not rows:
+        return ""
+    return "\n".join(["| Name | Kind | Module | Description |", "|------|------|--------|-------------|", *rows])
+
+
 def format_module(
     module,
     src_root: Optional[str] = None,
@@ -650,6 +759,12 @@ def format_module(
             lines.append("**Dependencies**\n")
             lines.append(dep_diagram)
             lines.append("")
+
+    reexports = format_reexports(module, link_index)
+    if reexports:
+        lines.append("## Re-exports\n")
+        lines.append(reexports)
+        lines.append("")
 
     toc_items = []
     for dtype in module.types:

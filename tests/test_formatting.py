@@ -280,14 +280,14 @@ class TestBuildEntityIndex:
         mod = MockModule(name="penf_global", variables=[var])
         project = MockProject(modules=[mod])
         index = build_entity_index(project)
-        assert index["i4p"] == "/api/penf_global"
+        assert index["i4p"] == "/api/penf_global#variables"
 
-    def test_variable_url_has_no_anchor(self):
+    def test_variable_url_is_the_variables_section(self):
         var = MockVariable(name="R8P")
         mod = MockModule(name="penf_global", variables=[var])
         project = MockProject(modules=[mod])
         index = build_entity_index(project)
-        assert "#" not in index["r8p"]
+        assert index["r8p"].endswith("#variables")
 
 
 # ---------------------------------------------------------------------------
@@ -481,3 +481,51 @@ class TestFormatCallDiagram:
         out = format_call_diagram(self._proc("c"), callers)
         assert out.splitlines()[1] == "flowchart LR"
         assert sum("--> c[" in ln for ln in out.splitlines()) == 8
+
+
+# ---------------------------------------------------------------------------
+# re-exports of a facade module
+# ---------------------------------------------------------------------------
+
+class TestReexports:
+    def _facade(self):
+        from mocks import MockType
+        lib = MockModule(name="lib")
+        t = MockType(name="box", doc_list=["A box.", "More."], parent=lib)
+        f = MockProcedure(name="box_interior", proctype="Function", doc_list=["Interior."], parent=lib)
+        v = MockVariable(name="LAYOUT", doc_list=["Layout."], parameter=True)
+        v.parent = lib
+        facade = MockModule(name="facade")
+        facade.public_list = ["box", "box_interior", "layout", "r_p", "i4p"]
+        facade.pub_types = {"box": t}
+        facade.pub_procs = {"box_interior": f}
+        facade.pub_vars = {"layout": v}
+        kinds = MockModule(name="kinds")
+        kinds.public_list = ["r_p"]
+        kinds.parent = type("F", (), {"raw_src": "module kinds\nuse penf, only : R_P\n"})()
+        facade.uses = [lib, kinds, "penf"]
+        facade.parent = type("F", (), {"raw_src": "module facade\nuse penf, only : I4P, &\n  & I8P\nuse kinds\n"})()
+        return facade
+
+    def test_rows_in_public_order_linked(self):
+        from formal.generator import format_reexports
+        index = {"lib": "/api/lib", "lib:box": "/api/lib#box", "lib:box_interior": "/api/lib#box-interior",
+                 "lib:layout": "/api/lib#variables", "kinds": "/api/kinds"}
+        out = format_reexports(self._facade(), index).splitlines()
+        assert out[2] == "| [`box`](/api/lib#box) | type | [lib](/api/lib) | A box. More. |"
+        assert out[3] == "| [`box_interior`](/api/lib#box-interior) | function | [lib](/api/lib) | Interior. |"
+        assert out[4].startswith("| [`LAYOUT`](/api/lib#variables) | parameter |")
+
+    def test_unresolved_traced_to_their_module(self):
+        from formal.generator import format_reexports
+        out = format_reexports(self._facade(), {"kinds": "/api/kinds"})
+        assert "| `R_P` |  | [kinds](/api/kinds) |  |" in out
+        assert "| `I4P` |  | penf |  |" in out
+
+    def test_own_entities_not_listed(self):
+        from formal.generator import format_reexports
+        mod = MockModule(name="lib")
+        p = MockProcedure(name="f", parent=mod)
+        mod.public_list = ["f"]
+        mod.pub_procs = {"f": p}
+        assert format_reexports(mod) == ""
