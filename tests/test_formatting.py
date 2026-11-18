@@ -577,3 +577,23 @@ class TestDiagramLinks:
                                          link_index={"base": "/api/b#base", "leaf": "/api/m#leaf"}, page_url="/api/m")
         assert '  click base href "b.html#base" "base"' in out
         assert '  click leaf href "#leaf" "leaf"' in out
+
+
+# ---------------------------------------------------------------------------
+# the API index page
+# ---------------------------------------------------------------------------
+
+class TestFormatIndex:
+    SIDEBAR = [{"text": "src/lib", "collapsed": True, "items": [{"text": "m", "link": "/api/src/lib/m"}]}]
+
+    def test_without_intro(self):
+        from formal.generator import format_index
+        out = format_index(self.SIDEBAR)
+        assert out.startswith("---\ntitle: API Reference\n---\n\n# API Reference\n\nAuto-generated")
+        assert "## src/lib\n\n- [m](/api/src/lib/m)" in out
+
+    def test_intro_before_modules_links_resolved(self):
+        from formal.generator import format_index
+        out = format_index(self.SIDEBAR, "Start with [[m]].\n\n## Layers", {"m": "/api/src/lib/m"})
+        assert "# API Reference\n\nStart with [m](/api/src/lib/m).\n\n## Layers\n" in out
+        assert out.index("## Layers") < out.index("## src/lib")

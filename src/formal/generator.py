@@ -33,6 +33,33 @@ def load_project(project_file: Path):
     return project
 
 
+def load_project_body(project_file: Path) -> str:
+    """The Markdown body of a FORD project file: the text after its metadata header, stripped (may be empty)."""
+    from ford.settings import load_markdown_settings
+
+    _, body = load_markdown_settings(str(project_file.parent), project_file.read_text(encoding="utf-8"), str(project_file))
+    return (body or "").strip()
+
+
+def format_index(sidebar: list, intro: str = "", link_index: Optional[dict] = None) -> str:
+    """The API index page: the project's introduction (the FORD project file's body), then the modules by group.
+
+    FORD ``[[name]]`` links in the introduction are resolved with *link_index*.
+    """
+    lines = ["---", "title: API Reference", "---", "", "# API Reference", ""]
+    if intro:
+        lines.append(resolve_links(intro, link_index) if link_index is not None else intro)
+        lines.append("")
+    lines.append("Auto-generated from Fortran source doc comments using [FORMAL](https://github.com/szaghi/formal).")
+    lines.append("")
+    for group in sidebar:
+        lines.append(f"## {group['text']}\n")
+        for item in group["items"]:
+            lines.append(f"- [{item['text']}]({item['link']})")
+        lines.append("")
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Text formatting helpers
 # ---------------------------------------------------------------------------
@@ -1160,25 +1187,9 @@ def generate(
     if verbose:
         print(f"  -> {sidebar_file}")
 
-    # Generate index page
-    index_lines = [
-        "---",
-        "title: API Reference",
-        "---",
-        "",
-        "# API Reference",
-        "",
-        "Auto-generated from Fortran source doc comments using [FORMAL](https://github.com/szaghi/formal).",
-        "",
-    ]
-    for group in sidebar:
-        index_lines.append(f"## {group['text']}\n")
-        for item in group["items"]:
-            index_lines.append(f"- [{item['text']}]({item['link']})")
-        index_lines.append("")
-
+    # Generate index page: the project file's body as its introduction
     index_file = output_dir / "index.md"
-    index_file.write_text("\n".join(index_lines), encoding="utf-8")
+    index_file.write_text(format_index(sidebar, load_project_body(project_file), link_index), encoding="utf-8")
     written_files.append(index_file)
     if verbose:
         print(f"  -> {index_file}")

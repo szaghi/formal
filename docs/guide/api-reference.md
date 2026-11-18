@@ -83,8 +83,13 @@ warn: true
 graph: false
 author: Jane Doe
 
-This text after the metadata is the project description (unused by FORMAL).
+This text after the metadata is the API overview: FORMAL makes it the introduction of api/index.md.
 ```
+
+The Markdown after the metadata header is the introduction of the generated API index page (`api/index.md`), above
+the list of modules; FORD `[[name]]` links in it are resolved like those of the doc comments. Write there what a
+reader needs before opening a module: the layers of the library, the module to start from, the conventions every
+module follows. Leave it empty for a bare list of modules.
 
 ### Key Settings
 
